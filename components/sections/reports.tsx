@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { DEMO_METRICS, TREND_REVENUE, TREND_SPEND, TREND_ROAS, DECISIONS_LOG } from "@/lib/data";
 import { eur, pct } from "@/lib/utils";
+import { downloadCSV } from "@/lib/export";
+import { useToast } from "@/components/ui/toast";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine
 } from "recharts";
@@ -28,6 +30,7 @@ function DecisionIcon({ icon }: { icon: string }) {
 
 export function Reports() {
   const [tab, setTab] = useState<"daily" | "weekly">("daily");
+  const { success } = useToast();
 
   return (
     <div className="space-y-5">
@@ -37,8 +40,14 @@ export function Reports() {
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Reportes</h1>
           <p className="text-[13px] text-[var(--ink-3)] mt-1">Resumen diario y semanal para tomar decisiones documentadas.</p>
         </div>
-        <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-1)] shadow-sm hover:bg-[var(--bg-inset)] flex items-center gap-1.5">
-          <Download size={12} /> Exportar PDF
+        <button onClick={() => {
+          downloadCSV(`reporte-${tab}-13mayo.csv`, tab === "daily"
+            ? [{ fecha: "13 mayo", ingresos: m.revenue, gasto: m.adSpend, beneficio: m.profit, roas: m.roas, cpa: m.cpa }]
+            : DAYS.map((d, i) => ({ dia: d, ingresos: TREND_REVENUE[i], gasto: TREND_SPEND[i], roas: TREND_ROAS[i] }))
+          );
+          success("Reporte exportado", `reporte-${tab}-13mayo.csv descargado.`);
+        }} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-1)] shadow-sm hover:bg-[var(--bg-inset)] flex items-center gap-1.5">
+          <Download size={12} /> Exportar CSV
         </button>
       </div>
 

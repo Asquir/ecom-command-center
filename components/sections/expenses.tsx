@@ -1,12 +1,15 @@
 "use client";
 import { FIXED_COSTS } from "@/lib/data";
 import { eur } from "@/lib/utils";
-import { TrendingDown, DollarSign } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { useToast } from "@/components/ui/toast";
+import { TrendingDown, Download } from "lucide-react";
 
 const DEMO_REVENUE_MONTH = 4200;
 const DEMO_AD_SPEND_MONTH = 1850;
 
 export function Expenses() {
+  const { success } = useToast();
   const total = FIXED_COSTS.reduce((s, c) => s + c.monthly, 0);
   const totalAll = total + DEMO_AD_SPEND_MONTH;
   const netProfit = DEMO_REVENUE_MONTH - totalAll;
@@ -29,6 +32,12 @@ export function Expenses() {
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Gastos fijos</h1>
           <p className="text-[13px] text-[var(--ink-3)] mt-1">Infraestructura mensual, impacto en margen y análisis por categoría.</p>
         </div>
+        <button onClick={() => {
+          downloadCSV("gastos-fijos.csv", FIXED_COSTS.map(c => ({ categoria: c.cat, servicio: c.name, mensual: c.monthly, anual: c.monthly * 12 })));
+          success("CSV exportado", "gastos-fijos.csv descargado.");
+        }} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white shadow-sm hover:bg-[var(--bg-inset)] flex items-center gap-1.5">
+          <Download size={12} /> Exportar CSV
+        </button>
       </div>
 
       {/* Summary KPIs */}

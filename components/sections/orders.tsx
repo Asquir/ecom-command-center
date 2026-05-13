@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { ORDERS, SUPPLIERS, type Order, type Supplier } from "@/lib/data";
 import { eur } from "@/lib/utils";
-import { Package, AlertTriangle, CheckCircle, Clock, Truck, RotateCcw, XCircle, Star } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { useToast } from "@/components/ui/toast";
+import { Package, AlertTriangle, CheckCircle, Clock, Truck, RotateCcw, Star, Download } from "lucide-react";
 
 function statusIcon(s: Order["status"]) {
   const cls = "flex-shrink-0";
@@ -75,6 +77,7 @@ function SupplierCard({ s }: { s: Supplier }) {
 
 export function Orders() {
   const [tab, setTab] = useState<"orders" | "suppliers">("orders");
+  const { success, info } = useToast();
 
   const incidents = ORDERS.filter(o => o.status === "Incidencia" || o.status === "Reembolso");
   const totalMargin = ORDERS.reduce((s, o) => s + o.margin, 0);
@@ -87,6 +90,15 @@ export function Orders() {
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Pedidos y Proveedores</h1>
           <p className="text-[13px] text-[var(--ink-3)] mt-1">Estado de pedidos, incidencias y ficha de proveedores.</p>
         </div>
+        <button onClick={() => {
+          downloadCSV("pedidos.csv", ORDERS.map(o => ({
+            id: o.id, cliente: o.customer, producto: o.product, pack: o.pack,
+            fecha: o.date, estado: o.status, tracking: o.track, coste: o.cost, margen: o.margin,
+          })));
+          success("CSV exportado", "pedidos.csv descargado.");
+        }} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white shadow-sm hover:bg-[var(--bg-inset)] flex items-center gap-1.5">
+          <Download size={12} /> Exportar CSV
+        </button>
       </div>
 
       {incidents.length > 0 && (

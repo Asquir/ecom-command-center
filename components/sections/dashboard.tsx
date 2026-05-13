@@ -1,7 +1,9 @@
 "use client";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { DecisionBadge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import { eur, pct } from "@/lib/utils";
+import { downloadCSV } from "@/lib/export";
 import {
   DEMO_METRICS, FUNNEL_STEPS, TREND_REVENUE, TREND_SPEND, TREND_ROAS,
   type DashboardMetrics
@@ -99,6 +101,7 @@ function FunnelView() {
 export function Dashboard() {
   const m = DEMO_METRICS;
   const rec = getRecommendation(m);
+  const { success, info } = useToast();
 
   const chartData = DAYS.map((d, i) => ({
     day: d,
@@ -117,10 +120,17 @@ export function Dashboard() {
           <p className="text-[13px] text-[var(--ink-3)] mt-1">Resumen del día, salud del funnel y decisión recomendada.</p>
         </div>
         <div className="flex gap-2">
-          <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-1)] shadow-sm hover:bg-[var(--bg-inset)] transition-colors">
+          <button onClick={() => {
+            downloadCSV("dashboard-hoy.csv", [{
+              fecha: "13 mayo 2026", ingresos: m.revenue, gasto: m.adSpend,
+              beneficio: m.profit, roas: m.roas, cpa: m.cpa, ctr: m.ctr,
+              cpc: m.cpc, cpm: m.cpm, atc: m.atc, checkouts: m.checkouts, compras: m.purchases,
+            }]);
+            success("CSV exportado", "dashboard-hoy.csv descargado.");
+          }} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-1)] shadow-sm hover:bg-[var(--bg-inset)] transition-colors">
             Exportar
           </button>
-          <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black transition-colors">
+          <button onClick={() => info("Nuevo test", "Ir a Creativos para lanzar un nuevo ángulo.")} className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black transition-colors">
             + Nuevo test
           </button>
         </div>
@@ -141,10 +151,10 @@ export function Dashboard() {
             <div className="text-[17px] font-semibold text-[var(--ink-1)] leading-snug mb-2">{rec.headline}</div>
             <p className="text-[13px] text-[var(--ink-3)] leading-relaxed max-w-2xl">{rec.detail}</p>
             <div className="flex gap-2 mt-4 flex-wrap">
-              <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black transition-colors flex items-center gap-1.5">
+              <button onClick={() => success("Decisión aplicada", rec.headline)} className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black transition-colors flex items-center gap-1.5">
                 <Zap size={12} /> Aplicar decisión
               </button>
-              <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-1)] hover:bg-[var(--bg-inset)] transition-colors">
+              <button onClick={() => info("Regla aplicada", rec.kind === "scale" ? "Regla s1: ROAS ≥ BE×1.2" : rec.kind === "kill" ? "Regla k1: CPC > 2.5€" : "Sin regla activa — esperando datos")} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-1)] hover:bg-[var(--bg-inset)] transition-colors">
                 Ver reglas usadas
               </button>
             </div>
