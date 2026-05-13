@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useLocalStorage } from "@/lib/hooks";
 import { CAMPAIGNS, type Campaign, type DecisionKind } from "@/lib/data";
 import { DecisionBadge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
@@ -36,8 +37,8 @@ interface CampaignState extends Campaign {
 
 export function Campaigns() {
   const { success, warning, info } = useToast();
-  const [campaigns, setCampaigns] = useState<CampaignState[]>(
-    CAMPAIGNS.map(c => ({ ...c }))
+  const [campaigns, setCampaigns] = useLocalStorage<CampaignState[]>(
+    "ecc-campaigns", CAMPAIGNS.map(c => ({ ...c }))
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");

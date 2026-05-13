@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useLocalStorage } from "@/lib/hooks";
 import { DEMO_CREATIVES, type Creative, type DecisionKind } from "@/lib/data";
 import { DecisionBadge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/ui/score-ring";
@@ -107,7 +108,7 @@ type CreativeState = Creative & { paused?: boolean };
 
 export function Creatives() {
   const { success, warning, info } = useToast();
-  const [creatives, setCreatives] = useState<CreativeState[]>(DEMO_CREATIVES.map(c => ({ ...c })));
+  const [creatives, setCreatives] = useLocalStorage<CreativeState[]>("ecc-creatives", DEMO_CREATIVES.map(c => ({ ...c })));
   const [sortBy, setSortBy] = useState<"score" | "ctr" | "spend">("score");
   const [filterAngle, setFilterAngle] = useState<string>("all");
   const [variationModal, setVariationModal] = useState<CreativeState | null>(null);

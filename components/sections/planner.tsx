@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
+import { useLocalStorage } from "@/lib/hooks";
 import { PLANNER_DAYS, DAILY_CHECKLIST } from "@/lib/data";
 import { CheckCircle, Circle, Clock, ChevronRight, Zap, Calendar } from "lucide-react";
 
 type CheckItem = { id: string; label: string; done: boolean };
 
 export function Planner() {
-  const [checks, setChecks] = useState<CheckItem[]>(DAILY_CHECKLIST);
+  const [checks, setChecks] = useLocalStorage<CheckItem[]>("ecc-planner-checks", DAILY_CHECKLIST);
   const [expandedDay, setExpandedDay] = useState<number | null>(3);
 
   const toggle = (id: string) =>

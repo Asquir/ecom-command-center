@@ -47,3 +47,54 @@ body {
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; border: 2px solid var(--bg); }
+
+/* ── Dark mode ─────────────────────────────────────────────────── */
+html[data-theme="dark"] {
+  --bg: #0F0F0D;
+  --bg-elev: #18181500;
+  --bg-inset: #222220;
+  --sidebar: #131311;
+  --border: #2C2C28;
+  --border-strong: #3A3A35;
+
+  --ink-1: #F0F0EC;
+  --ink-2: #C8C8C0;
+  --ink-3: #8A8A82;
+  --ink-4: #5A5A54;
+  --ink-5: #3A3A35;
+
+  --gold: #C8A96A;
+  --gold-soft: #261F10;
+  --gold-deep: #D4B87A;
+
+  --success: #22C55E;
+  --success-soft: #0A2018;
+  --warning: #F59E0B;
+  --warning-soft: #231A08;
+  --danger: #EF4444;
+  --danger-soft: #220C0C;
+  --info: #3B82F6;
+  --info-soft: #0C1828;
+}
+
+html[data-theme="dark"] body {
+  background: var(--bg);
+  color: var(--ink-1);
+}
+
+html[data-theme="dark"] .bg-white {
+  background-color: #1C1C19 !important;
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select {
+  background-color: #1C1C19;
+  color: var(--ink-1);
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-color: var(--bg);
+}

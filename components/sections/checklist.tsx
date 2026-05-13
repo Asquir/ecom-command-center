@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
 import { CHECKLIST_ITEMS } from "@/lib/data";
+import { useLocalStorage } from "@/lib/hooks";
 import { cx } from "@/lib/utils";
 import { Check, AlertCircle } from "lucide-react";
 
 export function Checklist() {
-  const [items, setItems] = useState(CHECKLIST_ITEMS);
+  const [items, setItems] = useLocalStorage("ecc-checklist", CHECKLIST_ITEMS);
 
   const toggle = (id: string) =>
     setItems(prev => prev.map(it => it.id === id ? { ...it, done: !it.done } : it));

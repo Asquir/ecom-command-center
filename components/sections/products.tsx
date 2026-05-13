@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useLocalStorage } from "@/lib/hooks";
 import { PRODUCTS, CAMPAIGNS, DEMO_CREATIVES, DECISIONS_LOG, TREND_ROAS, type Product, type ProductStatus } from "@/lib/data";
 import { DecisionBadge, Badge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/ui/score-ring";
@@ -394,7 +395,7 @@ const STATUS_FILTERS = [
 
 export function Products() {
   const { success } = useToast();
-  const [products, setProducts] = useState(PRODUCTS.map(p => ({ ...p })));
+  const [products, setProducts] = useLocalStorage("ecc-products", PRODUCTS.map(p => ({ ...p })));
   const [view, setView] = useState<"cards" | "table">("cards");
   const [filter, setFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);

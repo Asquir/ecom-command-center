@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { useLocalStorage } from "@/lib/hooks";
 import { Sidebar, type Section } from "@/components/sidebar";
 import { Dashboard } from "@/components/sections/dashboard";
 import { Calculator } from "@/components/sections/calculator";
@@ -52,8 +53,12 @@ const NOTIFICATIONS = [
 ];
 
 export default function Home() {
-  const [section, setSection] = useState<Section>("dashboard");
-  const [dark, setDark] = useState(false);
+  const [section, setSection] = useLocalStorage<Section>("ecc-section", "dashboard");
+  const [dark, setDark] = useLocalStorage<boolean>("ecc-dark", false);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  }, [dark]);
   const [searchQ, setSearchQ] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -95,7 +100,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg)]" data-theme={dark ? "dark" : "light"}>
+    <div className="flex min-h-screen bg-[var(--bg)]">
       <Sidebar active={section} onNavigate={navigate} />
 
       <div className="flex-1 flex flex-col min-w-0">

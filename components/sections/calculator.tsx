@@ -2,6 +2,8 @@
 import { useState, useMemo } from "react";
 import { eur } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useLocalStorage } from "@/lib/hooks";
+import { useSettings } from "@/lib/settings-context";
 import { Save, Trash2, Copy } from "lucide-react";
 
 interface CalcInputs {
@@ -41,14 +43,15 @@ interface Scenario { name: string; inputs: CalcInputs; beCpa: number; beRoas: nu
 
 export function Calculator() {
   const { success, warning } = useToast();
-  const [inputs, setInputs] = useState<CalcInputs>({
-    aov: 39, price1: 39, price2: 69, price3: 94,
+  const { settings } = useSettings();
+  const [inputs, setInputs] = useLocalStorage<CalcInputs>("ecc-calculator", {
+    aov: settings.aov, price1: settings.aov, price2: settings.aov * 1.77, price3: settings.aov * 2.41,
     cogs1: 8.5, cogs2: 16.2, cogs3: 23.0,
     shipping: 0, payPct: 7, payFix: 0.25, cogsAvg: 8.5,
     monthlyShopify: 29, monthlyApps: 82.89, monthlySoftware: 22, monthlyOthers: 6.50,
-    targetMarginPct: 20, atcGoal: 10, icGoal: 6, cvrGoal: 3, fx: 0.89,
+    targetMarginPct: settings.margin, atcGoal: 10, icGoal: 6, cvrGoal: 3, fx: 0.89,
   });
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [scenarios, setScenarios] = useLocalStorage<Scenario[]>("ecc-scenarios", []);
   const [scenarioName, setScenarioName] = useState("");
 
   const set = (k: keyof CalcInputs) => (v: number) => setInputs(p => ({ ...p, [k]: v }));

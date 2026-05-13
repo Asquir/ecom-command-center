@@ -10,6 +10,7 @@ import {
 } from "@/lib/data";
 import { Zap, AlertTriangle, CheckCircle, TrendingUp, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useSettings } from "@/lib/settings-context";
 
 function usePrimeTimeCountdown() {
   const [label, setLabel] = useState("");
@@ -121,7 +122,8 @@ function FunnelView() {
 }
 
 export function Dashboard() {
-  const m = DEMO_METRICS;
+  const { settings } = useSettings();
+  const m = { ...DEMO_METRICS, beCpa: settings.beCpa, beRoas: settings.beRoas };
   const rec = getRecommendation(m);
   const { success, info } = useToast();
   const primeTime = usePrimeTimeCountdown();
