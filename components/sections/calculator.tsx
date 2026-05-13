@@ -1,6 +1,8 @@
 "use client";
 import { useState, useMemo } from "react";
 import { eur } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
+import { Save, Trash2, Copy } from "lucide-react";
 
 interface CalcInputs {
   aov: number; price1: number; price2: number; price3: number;
@@ -35,7 +37,10 @@ function Result({ label, value, big, accent }: { label: string; value: string; b
   );
 }
 
+interface Scenario { name: string; inputs: CalcInputs; beCpa: number; beRoas: number; }
+
 export function Calculator() {
+  const { success, warning } = useToast();
   const [inputs, setInputs] = useState<CalcInputs>({
     aov: 39, price1: 39, price2: 69, price3: 94,
     cogs1: 8.5, cogs2: 16.2, cogs3: 23.0,
@@ -43,6 +48,8 @@ export function Calculator() {
     monthlyShopify: 29, monthlyApps: 82.89, monthlySoftware: 22, monthlyOthers: 6.50,
     targetMarginPct: 20, atcGoal: 10, icGoal: 6, cvrGoal: 3, fx: 0.89,
   });
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [scenarioName, setScenarioName] = useState("");
 
   const set = (k: keyof CalcInputs) => (v: number) => setInputs(p => ({ ...p, [k]: v }));
 
@@ -72,7 +79,58 @@ export function Calculator() {
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Calculadora de rentabilidad</h1>
           <p className="text-[13px] text-[var(--ink-3)] mt-1">Define tu break-even real antes de gastar un euro en ads.</p>
         </div>
+        <div className="flex items-center gap-2">
+          <input value={scenarioName} onChange={e => setScenarioName(e.target.value)} placeholder="Nombre del escenario…"
+            className="h-8 px-3 text-[12px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] w-44" />
+          <button onClick={() => {
+            if (!scenarioName.trim()) { warning("Nombre requerido", "Escribe un nombre para guardar el escenario."); return; }
+            setScenarios(prev => [...prev, { name: scenarioName, inputs: { ...inputs }, beCpa: c.beCpa, beRoas: c.beRoas }]);
+            success("Escenario guardado", scenarioName);
+            setScenarioName("");
+          }} className="h-8 px-3 text-[12px] font-medium rounded-lg bg-[var(--ink-1)] text-white hover:bg-black flex items-center gap-1.5">
+            <Save size={12} /> Guardar escenario
+          </button>
+        </div>
       </div>
+
+      {/* Saved scenarios comparison */}
+      {scenarios.length > 0 && (
+        <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+            <div className="text-[13px] font-semibold text-[var(--ink-1)]">Comparación de escenarios</div>
+            <button onClick={() => setScenarios([])} className="text-[11px] text-[var(--danger)] hover:underline">Limpiar todo</button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[var(--border)] bg-[var(--bg-inset)]">
+                  <th className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2">Escenario</th>
+                  {["AOV", "COGS", "BE CPA", "BE ROAS", "Margen obj."].map(h => (
+                    <th key={h} className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2">{h}</th>
+                  ))}
+                  <th />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {scenarios.map((s, i) => (
+                  <tr key={i} className="hover:bg-[var(--bg-inset)]">
+                    <td className="px-4 py-2.5 font-medium text-[13px] text-[var(--ink-1)]">{s.name}</td>
+                    <td className="px-4 py-2.5 font-mono text-[12px]">{eur(s.inputs.aov)}</td>
+                    <td className="px-4 py-2.5 font-mono text-[12px]">{eur(s.inputs.cogsAvg)}</td>
+                    <td className="px-4 py-2.5 font-mono text-[12px] font-semibold text-[var(--success)]">{eur(s.beCpa)}</td>
+                    <td className="px-4 py-2.5 font-mono text-[12px] font-semibold">{s.beRoas.toFixed(2)}×</td>
+                    <td className="px-4 py-2.5 font-mono text-[12px]">{s.inputs.targetMarginPct}%</td>
+                    <td className="px-4 py-2.5 flex items-center gap-1">
+                      <button onClick={() => { setInputs({ ...s.inputs }); success("Escenario cargado", s.name); }} title="Cargar" className="p-1 rounded hover:bg-[var(--bg-inset)] text-[var(--ink-3)]"><Copy size={12} /></button>
+                      <button onClick={() => setScenarios(prev => prev.filter((_, j) => j !== i))} title="Eliminar" className="p-1 rounded hover:bg-[var(--bg-inset)] text-[var(--danger)]"><Trash2 size={12} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         {/* Inputs */}

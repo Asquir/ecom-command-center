@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
-import { DEMO_CREATIVES, type Creative } from "@/lib/data";
+import { DEMO_CREATIVES, type Creative, type DecisionKind } from "@/lib/data";
 import { DecisionBadge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/ui/score-ring";
+import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
-import { Copy, Pause, Zap, SortAsc } from "lucide-react";
+import { Copy, Pause, Play, Zap, SortAsc, Plus, X, CheckCircle } from "lucide-react";
 
 const TONE_BG: Record<string, [string, string]> = {
   neutral: ["#1a1a1a", "#3a3a3a"],
@@ -18,14 +20,10 @@ function CreativeThumb({ label, tone, size = "card" }: { label: string; tone: st
   const [a, b] = TONE_BG[tone] ?? TONE_BG.neutral;
   const h = size === "card" ? "aspect-[9/11]" : "w-12 h-16";
   return (
-    <div
-      className={`relative ${size === "card" ? h : h} rounded-lg overflow-hidden flex-shrink-0`}
-      style={{ background: `repeating-linear-gradient(135deg, ${a} 0 14px, ${b} 14px 17px)` }}
-    >
+    <div className={`relative ${size === "card" ? h : h} rounded-lg overflow-hidden flex-shrink-0`}
+      style={{ background: `repeating-linear-gradient(135deg, ${a} 0 14px, ${b} 14px 17px)` }}>
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70" />
-      <div className="absolute bottom-2 left-2 right-2 text-[9px] text-white font-mono uppercase tracking-wider leading-tight">
-        {label}
-      </div>
+      <div className="absolute bottom-2 left-2 right-2 text-[9px] text-white font-mono uppercase tracking-wider leading-tight">{label}</div>
     </div>
   );
 }
@@ -41,13 +39,20 @@ function MetricPill({ label, value, good }: { label: string; value: string; good
   );
 }
 
-function CreativeCard({ c }: { c: Creative }) {
+function CreativeCard({ c, onPause, onDuplicate, onVariation }: {
+  c: Creative & { paused?: boolean };
+  onPause: () => void;
+  onDuplicate: () => void;
+  onVariation: () => void;
+}) {
+  const isPaused = c.paused || c.status === "Pausado";
   return (
-    <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden shadow-sm flex flex-col">
+    <div className={cx("bg-white border border-[var(--border)] rounded-xl overflow-hidden shadow-sm flex flex-col transition-opacity", isPaused && "opacity-60")}>
       <div className="relative">
         <CreativeThumb label={c.angle} tone={c.tone} size="card" />
         <div className="absolute top-2.5 left-2.5 flex gap-1.5">
           <DecisionBadge kind={c.decision} />
+          {isPaused && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-black/60 text-white">PAUSADO</span>}
         </div>
         <div className="absolute top-2.5 right-2.5">
           <ScoreRing value={c.score} size={44} />
@@ -63,7 +68,6 @@ function CreativeCard({ c }: { c: Creative }) {
           <div className="font-semibold text-[13px] text-[var(--ink-1)] leading-tight">{c.name}</div>
           <span className="text-[11px] text-[var(--ink-3)] flex-shrink-0">{c.launched}</span>
         </div>
-
         <div className="grid grid-cols-3 gap-x-3 gap-y-2">
           <MetricPill label="CTR"   value={pct(c.ctr)}  good={c.ctr >= 2.5 ? true : c.ctr < 1.5 ? false : null} />
           <MetricPill label="CPC"   value={eur(c.cpc)}  good={c.cpc <= 0.45 ? true : c.cpc > 0.7 ? false : null} />
@@ -75,46 +79,112 @@ function CreativeCard({ c }: { c: Creative }) {
           <MetricPill label="IC"    value={String(c.ic)} />
           <MetricPill label="Comp." value={String(c.purchases)} good={c.purchases > 0 ? true : null} />
         </div>
-
         <div className="bg-[var(--bg-inset)] border border-dashed border-[var(--border-strong)] rounded-lg p-2.5">
           <div className="text-[9px] font-semibold text-[var(--ink-4)] uppercase tracking-wide mb-1">Recomendación</div>
           <div className="text-[12px] text-[var(--ink-2)] leading-relaxed">{c.diag}</div>
         </div>
       </div>
 
-      <div className="flex border-t border-[var(--border-soft)]">
-        {[
-          { icon: Copy, label: "Duplicar" },
-          { icon: Zap, label: "Variaciones" },
-          { icon: Pause, label: "Pausar" },
-        ].map((btn, i) => (
-          <button key={i} className={cx(
-            "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[var(--ink-3)] hover:bg-[var(--bg-inset)] hover:text-[var(--ink-1)] transition-colors",
-            i > 0 ? "border-l border-[var(--border-soft)]" : ""
-          )}>
-            <btn.icon size={12} /> {btn.label}
-          </button>
-        ))}
+      <div className="flex border-t border-[var(--border)]">
+        <button onClick={onDuplicate} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[var(--ink-3)] hover:bg-[var(--bg-inset)] hover:text-[var(--ink-1)] transition-colors">
+          <Copy size={12} /> Duplicar
+        </button>
+        <button onClick={onVariation} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[var(--ink-3)] hover:bg-[var(--bg-inset)] hover:text-[var(--ink-1)] transition-colors border-l border-[var(--border)]">
+          <Zap size={12} /> Variaciones
+        </button>
+        <button onClick={onPause} className={cx(
+          "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors border-l border-[var(--border)]",
+          isPaused ? "text-[var(--success)] hover:bg-[var(--success-soft)]" : "text-[var(--danger)] hover:bg-[var(--danger-soft)]"
+        )}>
+          {isPaused ? <><Play size={12} /> Activar</> : <><Pause size={12} /> Pausar</>}
+        </button>
       </div>
     </div>
   );
 }
 
+type CreativeState = Creative & { paused?: boolean };
+
 export function Creatives() {
+  const { success, warning, info } = useToast();
+  const [creatives, setCreatives] = useState<CreativeState[]>(DEMO_CREATIVES.map(c => ({ ...c })));
   const [sortBy, setSortBy] = useState<"score" | "ctr" | "spend">("score");
   const [filterAngle, setFilterAngle] = useState<string>("all");
+  const [variationModal, setVariationModal] = useState<CreativeState | null>(null);
+  const [addModal, setAddModal] = useState(false);
+  const [newHook, setNewHook] = useState("");
+  const [newAngle, setNewAngle] = useState("");
+  const [newVoice, setNewVoice] = useState("Chica");
 
-  const angles = ["all", ...Array.from(new Set(DEMO_CREATIVES.map(c => c.angle)))];
+  const angles = ["all", ...Array.from(new Set(creatives.map(c => c.angle)))];
 
-  const sorted = DEMO_CREATIVES
+  const sorted = creatives
     .filter(c => filterAngle === "all" || c.angle === filterAngle)
     .sort((a, b) => sortBy === "score" ? b.score - a.score : sortBy === "ctr" ? b.ctr - a.ctr : b.spend - a.spend);
 
   const stats = {
-    ganadores: sorted.filter(c => c.score >= 80).length,
-    potenciales: sorted.filter(c => c.score >= 65 && c.score < 80).length,
-    testing: sorted.filter(c => c.score >= 40 && c.score < 65).length,
-    apagar: sorted.filter(c => c.score < 40).length,
+    ganadores:   creatives.filter(c => c.score >= 80).length,
+    potenciales: creatives.filter(c => c.score >= 65 && c.score < 80).length,
+    testing:     creatives.filter(c => c.score >= 40 && c.score < 65).length,
+    apagar:      creatives.filter(c => c.score < 40 && !c.paused).length,
+  };
+
+  const handlePause = (id: string) => {
+    const c = creatives.find(x => x.id === id);
+    const isPaused = c?.paused;
+    setCreatives(prev => prev.map(x => x.id === id ? { ...x, paused: !isPaused } : x));
+    isPaused ? success("Creativo activado", c?.name) : warning("Creativo pausado", c?.name);
+  };
+
+  const handleDuplicate = (c: CreativeState) => {
+    const copy: CreativeState = {
+      ...c,
+      id: `${c.id}-v${Date.now()}`,
+      name: `${c.name} (copia)`,
+      spend: 0, ctr: 0, cpc: 0, cpm: 0, atc: 0, ic: 0, purchases: 0,
+      score: 0, roas: 0, hookRate: 0, holdRate: 0,
+      launched: "Hoy", status: "Testeando", decision: "data" as DecisionKind,
+      diag: "Recién duplicado. Sin datos todavía.",
+      paused: false,
+    };
+    setCreatives(prev => [...prev, copy]);
+    success("Creativo duplicado", `"${c.name}" copiado. Edita el hook antes de lanzar.`);
+  };
+
+  const handleAddVariation = (c: CreativeState) => {
+    if (!newHook.trim()) return;
+    const variation: CreativeState = {
+      ...c,
+      id: `${c.id}-var${Date.now()}`,
+      name: `${c.name.replace(/ v\d+$/, "")} — ${newAngle || c.angle} v${creatives.filter(x => x.angle === (newAngle || c.angle)).length + 1}`,
+      hook: newHook,
+      angle: newAngle || c.angle,
+      voice: newVoice,
+      spend: 0, ctr: 0, cpc: 0, cpm: 0, atc: 0, ic: 0, purchases: 0,
+      score: 0, roas: 0, hookRate: 0, holdRate: 0,
+      launched: "Hoy", status: "Testeando", decision: "data" as DecisionKind,
+      diag: "Nueva variación. Espera 30–50 clics antes de evaluar.",
+      paused: false,
+    };
+    setCreatives(prev => [...prev, variation]);
+    success("Variación creada", variation.name);
+    setNewHook(""); setNewAngle(""); setVariationModal(null);
+  };
+
+  const handleAddCreative = () => {
+    if (!newHook.trim() || !newAngle.trim()) return;
+    const newC: CreativeState = {
+      id: `cr${Date.now()}`, name: `REGADERA · ${newAngle} · v1`,
+      angle: newAngle, hook: newHook, voice: newVoice,
+      music: "—", cta: "—", duration: "0:20", launched: "Hoy",
+      status: "Testeando", decision: "data" as DecisionKind,
+      spend: 0, cpm: 0, ctr: 0, cpc: 0, hookRate: 0, holdRate: 0,
+      atc: 0, cpAtc: null, ic: 0, purchases: 0, cpa: null, roas: 0,
+      score: 0, diag: "Recién creado. Sin datos todavía.", tone: "gold", paused: false,
+    };
+    setCreatives(prev => [...prev, newC]);
+    success("Creativo añadido", newC.name);
+    setNewHook(""); setNewAngle(""); setNewVoice("Chica"); setAddModal(false);
   };
 
   return (
@@ -122,23 +192,22 @@ export function Creatives() {
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">
-            {DEMO_CREATIVES.length} creativos · 3 ángulos en testing
+            {creatives.length} creativos · {Array.from(new Set(creatives.map(c => c.angle))).length} ángulos
           </div>
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Creativos</h1>
           <p className="text-[13px] text-[var(--ink-3)] mt-1">Score, decisión y diagnóstico. Duplica ganadores, apaga perdedores.</p>
         </div>
-        <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black">
-          + Subir creativo
+        <button onClick={() => setAddModal(true)} className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black flex items-center gap-1.5">
+          <Plus size={12} /> Subir creativo
         </button>
       </div>
 
-      {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Ganadores", count: stats.ganadores, color: "text-[var(--success)]", bg: "bg-[var(--success-soft)]" },
+          { label: "Ganadores",   count: stats.ganadores,   color: "text-[var(--success)]", bg: "bg-[var(--success-soft)]" },
           { label: "Potenciales", count: stats.potenciales, color: "text-[var(--warning)]", bg: "bg-[var(--warning-soft)]" },
-          { label: "En testing", count: stats.testing, color: "text-[var(--info)]", bg: "bg-[var(--info-soft)]" },
-          { label: "Para apagar", count: stats.apagar, color: "text-[var(--danger)]", bg: "bg-[var(--danger-soft)]" },
+          { label: "En testing",  count: stats.testing,     color: "text-[var(--info)]",    bg: "bg-[var(--info-soft)]" },
+          { label: "Para apagar", count: stats.apagar,      color: "text-[var(--danger)]",  bg: "bg-[var(--danger-soft)]" },
         ].map(s => (
           <div key={s.label} className={`${s.bg} border border-[var(--border)] rounded-xl p-3`}>
             <div className="text-[10px] font-semibold text-[var(--ink-3)] uppercase tracking-wide mb-1">{s.label}</div>
@@ -147,19 +216,11 @@ export function Creatives() {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
         {angles.map(a => (
-          <button
-            key={a}
-            onClick={() => setFilterAngle(a)}
-            className={cx(
-              "text-[12px] px-3 py-1.5 rounded-lg border font-medium transition-colors",
-              filterAngle === a
-                ? "bg-[var(--ink-1)] text-white border-[var(--ink-1)]"
-                : "bg-white text-[var(--ink-2)] border-[var(--border)] hover:bg-[var(--bg-inset)]"
-            )}
-          >
+          <button key={a} onClick={() => setFilterAngle(a)}
+            className={cx("text-[12px] px-3 py-1.5 rounded-lg border font-medium transition-colors",
+              filterAngle === a ? "bg-[var(--ink-1)] text-white border-[var(--ink-1)]" : "bg-white text-[var(--ink-2)] border-[var(--border)] hover:bg-[var(--bg-inset)]")}>
             {a === "all" ? "Todos" : a}
           </button>
         ))}
@@ -167,14 +228,9 @@ export function Creatives() {
           <SortAsc size={13} />
           <span>Ordenar por</span>
           {(["score", "ctr", "spend"] as const).map(s => (
-            <button
-              key={s}
-              onClick={() => setSortBy(s)}
-              className={cx(
-                "px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors",
-                sortBy === s ? "bg-[var(--ink-1)] text-white border-[var(--ink-1)]" : "bg-white border-[var(--border)] text-[var(--ink-2)] hover:bg-[var(--bg-inset)]"
-              )}
-            >
+            <button key={s} onClick={() => setSortBy(s)}
+              className={cx("px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors",
+                sortBy === s ? "bg-[var(--ink-1)] text-white border-[var(--ink-1)]" : "bg-white border-[var(--border)] text-[var(--ink-2)] hover:bg-[var(--bg-inset)]")}>
               {s === "score" ? "Score" : s === "ctr" ? "CTR" : "Gasto"}
             </button>
           ))}
@@ -182,8 +238,84 @@ export function Creatives() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sorted.map(c => <CreativeCard key={c.id} c={c} />)}
+        {sorted.map(c => (
+          <CreativeCard key={c.id} c={c}
+            onPause={() => handlePause(c.id)}
+            onDuplicate={() => handleDuplicate(c)}
+            onVariation={() => { setVariationModal(c); setNewAngle(c.angle); }}
+          />
+        ))}
       </div>
+
+      {/* Variation modal */}
+      <Modal open={!!variationModal} onClose={() => setVariationModal(null)} title={`Nueva variación de "${variationModal?.name}"`}>
+        <div className="space-y-4">
+          <p className="text-[12px] text-[var(--ink-3)]">Cambia el hook manteniendo el ángulo ganador. El sistema copiará todas las demás configuraciones.</p>
+          <div>
+            <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Nuevo hook (gancho de apertura)</label>
+            <textarea value={newHook} onChange={e => setNewHook(e.target.value)} rows={2}
+              placeholder='Ej: "¿Sabías que el sarro invisible daña tu piel cada día?"'
+              className="w-full px-3 py-2 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[rgba(200,169,106,0.15)] resize-none" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Ángulo</label>
+              <input value={newAngle} onChange={e => setNewAngle(e.target.value)}
+                placeholder={variationModal?.angle}
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Voz</label>
+              <select value={newVoice} onChange={e => setNewVoice(e.target.value)}
+                className="w-full h-9 px-2 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] bg-white">
+                {["Chica", "Chico", "IA", "Sin voz"].map(v => <option key={v}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={() => variationModal && handleAddVariation(variationModal)}
+              className="flex-1 py-2 rounded-lg bg-[var(--ink-1)] text-white text-[13px] font-medium hover:bg-black">
+              Crear variación
+            </button>
+            <button onClick={() => setVariationModal(null)} className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[13px] hover:bg-[var(--bg-inset)]">Cancelar</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add creative modal */}
+      <Modal open={addModal} onClose={() => setAddModal(false)} title="Nuevo creativo">
+        <div className="space-y-4">
+          <div>
+            <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Hook (gancho)</label>
+            <textarea value={newHook} onChange={e => setNewHook(e.target.value)} rows={2}
+              placeholder='Ej: "¿Todavía usando esa regadera de plástico?"'
+              className="w-full px-3 py-2 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] resize-none" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Ángulo</label>
+              <input value={newAngle} onChange={e => setNewAngle(e.target.value)} placeholder="Sarro, Presión, Pelo…"
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Voz</label>
+              <select value={newVoice} onChange={e => setNewVoice(e.target.value)}
+                className="w-full h-9 px-2 text-[13px] border border-[var(--border)] rounded-lg outline-none bg-white focus:border-[var(--gold)]">
+                {["Chica", "Chico", "IA", "Sin voz"].map(v => <option key={v}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="bg-[var(--gold-soft)] border border-[rgba(200,169,106,0.3)] rounded-lg p-3 text-[11px] text-[var(--ink-2)]">
+            <strong>Tip:</strong> Los mejores hooks abren con una pregunta, un problema visual o una estadística sorprendente. Máximo 5 segundos de impacto.
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={handleAddCreative} className="flex-1 py-2 rounded-lg bg-[var(--ink-1)] text-white text-[13px] font-medium hover:bg-black flex items-center justify-center gap-1.5">
+              <CheckCircle size={13} /> Añadir creativo
+            </button>
+            <button onClick={() => setAddModal(false)} className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[13px] hover:bg-[var(--bg-inset)]">Cancelar</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

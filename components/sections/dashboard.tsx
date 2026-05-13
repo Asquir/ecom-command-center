@@ -8,7 +8,29 @@ import {
   DEMO_METRICS, FUNNEL_STEPS, TREND_REVENUE, TREND_SPEND, TREND_ROAS,
   type DashboardMetrics
 } from "@/lib/data";
-import { Zap, AlertTriangle, CheckCircle, TrendingUp } from "lucide-react";
+import { Zap, AlertTriangle, CheckCircle, TrendingUp, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+
+function usePrimeTimeCountdown() {
+  const [label, setLabel] = useState("");
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const mx = new Date(now.toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
+      const h = mx.getHours(), m = mx.getMinutes();
+      const isPrime = h >= 20 && h < 23;
+      if (isPrime) { setLabel("¡Prime time MX activo ahora!"); return; }
+      const targetH = h < 20 ? 20 : 44;
+      const totalMins = h < 20 ? (20 - h) * 60 - m : (44 - h) * 60 - m;
+      const hh = Math.floor(totalMins / 60), mm = totalMins % 60;
+      setLabel(`Prime time MX en ${hh}h ${mm}m`);
+    };
+    update();
+    const t = setInterval(update, 30000);
+    return () => clearInterval(t);
+  }, []);
+  return label;
+}
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from "recharts";
@@ -102,6 +124,8 @@ export function Dashboard() {
   const m = DEMO_METRICS;
   const rec = getRecommendation(m);
   const { success, info } = useToast();
+  const primeTime = usePrimeTimeCountdown();
+  const today = new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
 
   const chartData = DAYS.map((d, i) => ({
     day: d,
@@ -115,7 +139,11 @@ export function Dashboard() {
       {/* Header */}
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Hoy · {"{TODAY}"} · prime time MX en 5h 22m</div>
+          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1 flex items-center gap-2">
+            <span>Hoy · {today}</span>
+            <span className="text-[var(--border-strong)]">·</span>
+            <span className="flex items-center gap-1"><Clock size={10} />{primeTime}</span>
+          </div>
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">¿Qué hago ahora con mis campañas?</h1>
           <p className="text-[13px] text-[var(--ink-3)] mt-1">Resumen del día, salud del funnel y decisión recomendada.</p>
         </div>

@@ -1,14 +1,14 @@
 "use client";
 import { useState } from "react";
-import { PRODUCTS, CAMPAIGNS, DEMO_CREATIVES, DECISIONS_LOG, TREND_ROAS, type Product } from "@/lib/data";
+import { PRODUCTS, CAMPAIGNS, DEMO_CREATIVES, DECISIONS_LOG, TREND_ROAS, type Product, type ProductStatus } from "@/lib/data";
 import { DecisionBadge, Badge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { KpiCard } from "@/components/ui/kpi-card";
+import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
-import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft } from "lucide-react";
+import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
-type ProductStatus = Product["status"];
 
 const STATUS_BADGE: Record<ProductStatus, { variant: "success" | "warning" | "danger" | "info" | "neutral" | "gold"; label: string }> = {
   testing:   { variant: "info",    label: "En testing"       },
@@ -78,15 +78,30 @@ function ProductCard({ p, onOpen }: { p: Product; onOpen: () => void }) {
 
 const DAYS = ["7 may","8 may","9 may","10 may","11 may","12 may","13 may"];
 
-function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
+function ProductDetail({ p: initialP, onBack, onStatusChange }: { p: Product; onBack: () => void; onStatusChange: (id: string, status: ProductStatus) => void }) {
+  const { success, info } = useToast();
+  const [p, setP] = useState(initialP);
   const [tab, setTab] = useState("summary");
+  const [notes, setNotes] = useState(p.notes ?? "");
+  const [notesSaved, setNotesSaved] = useState(false);
   const productCampaigns = CAMPAIGNS.filter(c => c.product === p.id);
   const productCreatives = p.id === "p1" ? DEMO_CREATIVES : [];
   const s = STATUS_BADGE[p.status];
 
   const chartData = DAYS.map((d, i) => ({ day: d, roas: TREND_ROAS[i], be: p.breRoas }));
-
   const TABS = ["summary","métricas","creativos","rentabilidad","proveedor","notas","decisiones"].map(k => ({ id: k, label: k.charAt(0).toUpperCase() + k.slice(1) }));
+
+  const changeStatus = (newStatus: ProductStatus) => {
+    setP(prev => ({ ...prev, status: newStatus, statusLabel: STATUS_BADGE[newStatus].label }));
+    onStatusChange(p.id, newStatus);
+    success("Estado actualizado", `${p.name} → ${STATUS_BADGE[newStatus].label}`);
+  };
+
+  const saveNotes = () => {
+    setNotesSaved(true);
+    success("Notas guardadas", p.name);
+    setTimeout(() => setNotesSaved(false), 2000);
+  };
 
   return (
     <div className="space-y-5">
@@ -98,18 +113,24 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
         <div className="flex gap-4 items-center">
           <ProductThumb tone={p.tone} label={p.name.split(" ")[0]} w={72} h={96} />
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <Badge variant={s.variant}>{s.label}</Badge>
               <span className="text-[12px] text-[var(--ink-3)]">{p.country} · {p.niche} · inicio {p.started}</span>
+              <select value={p.status} onChange={e => changeStatus(e.target.value as ProductStatus)}
+                className="h-7 px-2 text-[11px] font-medium border border-[var(--border)] rounded-lg bg-white outline-none focus:border-[var(--gold)] cursor-pointer">
+                {(Object.keys(STATUS_BADGE) as ProductStatus[]).map(st => (
+                  <option key={st} value={st}>{STATUS_BADGE[st].label}</option>
+                ))}
+              </select>
             </div>
             <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">{p.name}</h1>
             <p className="text-[13px] text-[var(--ink-3)] mt-1">{p.diagnosis}</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><Copy size={13}/> Duplicar test</button>
-          <button className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><ExternalLink size={13}/> Ver en Shopify</button>
-          <button className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black"><Zap size={13}/> Aplicar recomendación</button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => { info("Duplicar test", "Crea un nuevo producto basado en este configuración."); }} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><Copy size={13}/> Duplicar test</button>
+          <button onClick={() => window.open(`https://${p.supplier?.includes("Shopify") ? "admin.shopify.com" : "admin.shopify.com"}`, "_blank")} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><ExternalLink size={13}/> Ver en Shopify</button>
+          <button onClick={() => { success("Recomendación aplicada", p.diagnosis); setTab("notas"); }} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black"><Zap size={13}/> Aplicar recomendación</button>
         </div>
       </div>
 
@@ -322,12 +343,20 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
       )}
 
       {tab === "notas" && (
-        <div className="bg-white border border-[var(--border)] rounded-xl p-5 shadow-sm">
-          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-3">Notas del producto</div>
+        <div className="bg-white border border-[var(--border)] rounded-xl p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[13px] font-semibold text-[var(--ink-1)]">Notas del producto</div>
+            <button onClick={saveNotes} className={cx("flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg transition-all", notesSaved ? "bg-[var(--success)] text-white" : "bg-[var(--ink-1)] text-white hover:bg-black")}>
+              {notesSaved ? <><CheckCircle size={12} /> Guardado</> : <><Save size={12} /> Guardar notas</>}
+            </button>
+          </div>
           <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
             className="w-full h-52 text-[13px] text-[var(--ink-1)] border border-[var(--border-strong)] rounded-lg p-3 bg-white outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[rgba(200,169,106,0.15)] resize-y"
-            defaultValue={`${p.notes ?? ""}\n\n• 13/may — Sarro tiene mejor hold rate. Probar 3 hooks distintos.\n• 12/may — Pixel disparó ATC duplicado, ajustado en GTM.\n• 11/may — Cambiar copy del bundle, "ahorra 12 €" rinde más.`}
+            placeholder="Escribe aquí tus notas, observaciones y próximas acciones para este producto..."
           />
+          <div className="text-[11px] text-[var(--ink-4)]">Las notas se guardan localmente en esta sesión.</div>
         </div>
       )}
 
@@ -364,14 +393,20 @@ const STATUS_FILTERS = [
 ];
 
 export function Products() {
+  const { success } = useToast();
+  const [products, setProducts] = useState(PRODUCTS.map(p => ({ ...p })));
   const [view, setView] = useState<"cards" | "table">("cards");
   const [filter, setFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const filtered = PRODUCTS.filter(p => filter === "all" || p.status === filter);
-  const selected = PRODUCTS.find(p => p.id === selectedId);
+  const handleStatusChange = (id: string, status: ProductStatus) => {
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, status, statusLabel: STATUS_BADGE[status].label } : p));
+  };
 
-  if (selected) return <ProductDetail p={selected} onBack={() => setSelectedId(null)} />;
+  const filtered = products.filter(p => filter === "all" || p.status === filter);
+  const selected = products.find(p => p.id === selectedId);
+
+  if (selected) return <ProductDetail p={selected} onBack={() => setSelectedId(null)} onStatusChange={handleStatusChange} />;
 
   return (
     <div className="space-y-5">
