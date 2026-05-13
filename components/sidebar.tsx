@@ -1,0 +1,127 @@
+"use client";
+import { cx } from "@/lib/utils";
+import {
+  LayoutDashboard, Calculator, Play, Shield, CheckSquare,
+  Package, Megaphone, Calendar, ShoppingBag, Receipt,
+  FileBarChart, Settings, ChevronRight
+} from "lucide-react";
+
+export type Section =
+  | "dashboard"
+  | "calculator"
+  | "creatives"
+  | "rules"
+  | "checklist"
+  | "products"
+  | "campaigns"
+  | "planner"
+  | "orders"
+  | "expenses"
+  | "reports"
+  | "settings";
+
+const NAV_GROUPS: {
+  label: string;
+  items: { id: Section; label: string; icon: React.ElementType; count?: number }[];
+}[] = [
+  {
+    label: "Decisiones",
+    items: [
+      { id: "dashboard",  label: "Dashboard",    icon: LayoutDashboard },
+      { id: "campaigns",  label: "Campañas",     icon: Megaphone, count: 5 },
+      { id: "creatives",  label: "Creativos",    icon: Play, count: 3 },
+      { id: "rules",      label: "Reglas",       icon: Shield, count: 8 },
+    ],
+  },
+  {
+    label: "Productos",
+    items: [
+      { id: "products",   label: "Productos",    icon: Package, count: 6 },
+      { id: "planner",    label: "Testing plan", icon: Calendar },
+      { id: "orders",     label: "Pedidos",      icon: ShoppingBag },
+    ],
+  },
+  {
+    label: "Finanzas",
+    items: [
+      { id: "calculator", label: "Calculadora",  icon: Calculator },
+      { id: "expenses",   label: "Gastos fijos", icon: Receipt },
+      { id: "reports",    label: "Reportes",     icon: FileBarChart },
+    ],
+  },
+  {
+    label: "Config",
+    items: [
+      { id: "checklist",  label: "Checklist",    icon: CheckSquare },
+      { id: "settings",   label: "Ajustes",      icon: Settings },
+    ],
+  },
+];
+
+interface SidebarProps {
+  active: Section;
+  onNavigate: (s: Section) => void;
+}
+
+export function Sidebar({ active, onNavigate }: SidebarProps) {
+  return (
+    <aside className="flex flex-col h-screen sticky top-0 border-r border-[var(--border)] bg-[var(--sidebar)] px-3 py-4 gap-1 w-[220px] flex-shrink-0 overflow-y-auto">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-2 pb-3 mb-1">
+        <div className="w-7 h-7 rounded-lg bg-[var(--ink-1)] flex items-center justify-center flex-shrink-0">
+          <span className="font-mono font-bold text-[12px] text-[var(--gold)]">EC</span>
+        </div>
+        <div>
+          <div className="font-bold text-[14px] text-[var(--ink-1)] leading-tight">Command Center</div>
+          <div className="text-[10px] text-[var(--ink-4)] uppercase tracking-wide">Ecommerce OS</div>
+        </div>
+      </div>
+
+      {NAV_GROUPS.map(group => (
+        <div key={group.label} className="mb-1">
+          <div className="text-[10px] font-semibold text-[var(--ink-5)] uppercase tracking-widest px-2 py-1.5">{group.label}</div>
+          {group.items.map(n => {
+            const Icon = n.icon;
+            const isActive = active === n.id;
+            return (
+              <button
+                key={n.id}
+                onClick={() => onNavigate(n.id)}
+                className={cx(
+                  "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium w-full text-left transition-all mb-0.5",
+                  isActive
+                    ? "bg-white text-[var(--ink-1)] shadow-[0_1px_3px_rgba(17,17,17,0.07),inset_0_0_0_1px_var(--border)] font-semibold"
+                    : "text-[var(--ink-3)] hover:bg-white/60 hover:text-[var(--ink-1)]"
+                )}
+              >
+                <Icon size={14} className={isActive ? "text-[var(--gold-deep)]" : "text-[var(--ink-4)]"} />
+                <span className="flex-1">{n.label}</span>
+                {n.count != null && (
+                  <span className="text-[10px] font-mono text-[var(--ink-4)] bg-[var(--bg-inset)] px-1.5 py-0.5 rounded">
+                    {n.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+
+      <div className="mt-auto border-t border-[var(--border)] pt-3 px-1">
+        <div className="rounded-xl bg-white border border-[var(--border)] p-3 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(200,169,106,0.12),transparent_60%)] pointer-events-none" />
+          <div className="text-[10px] font-semibold text-[var(--gold-deep)] uppercase tracking-wider mb-1">Producto activo</div>
+          <div className="text-[12px] font-semibold text-[var(--ink-1)] mb-0.5">Regadera Anti-Sarro</div>
+          <div className="text-[11px] text-[var(--ink-3)]">3 creativos · En testing</div>
+        </div>
+        <div className="flex items-center gap-2 mt-3 px-1">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--gold)] to-[var(--gold-deep)] flex items-center justify-center text-white text-[11px] font-bold">M</div>
+          <div>
+            <div className="text-[12px] font-semibold text-[var(--ink-1)]">Mario / REVIARI</div>
+            <div className="text-[11px] text-[var(--ink-4)]">Plan Operador · MX/ES</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
