@@ -1,42 +1,35 @@
 "use client";
 import { cx } from "@/lib/utils";
+import { useSettings } from "@/lib/settings-context";
 import {
   LayoutDashboard, Calculator, Play, Shield, CheckSquare,
   Package, Megaphone, Calendar, ShoppingBag, Receipt,
-  FileBarChart, Settings, ChevronRight
+  FileBarChart, Settings, FlaskConical, Wallet, TrendingUp
 } from "lucide-react";
 
 export type Section =
-  | "dashboard"
-  | "calculator"
-  | "creatives"
-  | "rules"
-  | "checklist"
-  | "products"
-  | "campaigns"
-  | "planner"
-  | "orders"
-  | "expenses"
-  | "reports"
-  | "settings";
+  | "dashboard" | "calculator" | "creatives" | "rules" | "checklist"
+  | "products" | "campaigns" | "planner" | "orders" | "expenses"
+  | "reports" | "settings" | "cashflow" | "lab";
 
 const NAV_GROUPS: {
   label: string;
-  items: { id: Section; label: string; icon: React.ElementType; count?: number }[];
+  items: { id: Section; label: string; icon: React.ElementType; badge?: string }[];
 }[] = [
   {
     label: "Decisiones",
     items: [
       { id: "dashboard",  label: "Dashboard",    icon: LayoutDashboard },
-      { id: "campaigns",  label: "Campañas",     icon: Megaphone, count: 5 },
-      { id: "creatives",  label: "Creativos",    icon: Play, count: 3 },
-      { id: "rules",      label: "Reglas",       icon: Shield, count: 8 },
+      { id: "campaigns",  label: "Campañas",     icon: Megaphone },
+      { id: "creatives",  label: "Creativos",    icon: Play },
+      { id: "rules",      label: "Reglas kill/scale", icon: Shield },
+      { id: "lab",        label: "Lab A/B",      icon: FlaskConical, badge: "NUEVO" },
     ],
   },
   {
     label: "Productos",
     items: [
-      { id: "products",   label: "Productos",    icon: Package, count: 6 },
+      { id: "products",   label: "Productos",    icon: Package },
       { id: "planner",    label: "Testing plan", icon: Calendar },
       { id: "orders",     label: "Pedidos",      icon: ShoppingBag },
     ],
@@ -44,9 +37,10 @@ const NAV_GROUPS: {
   {
     label: "Finanzas",
     items: [
-      { id: "calculator", label: "Calculadora",  icon: Calculator },
-      { id: "expenses",   label: "Gastos fijos", icon: Receipt },
-      { id: "reports",    label: "Reportes",     icon: FileBarChart },
+      { id: "cashflow",   label: "Flujo de caja", icon: Wallet, badge: "NUEVO" },
+      { id: "calculator", label: "Calculadora",   icon: Calculator },
+      { id: "expenses",   label: "Gastos fijos",  icon: Receipt },
+      { id: "reports",    label: "Reportes",      icon: FileBarChart },
     ],
   },
   {
@@ -64,6 +58,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ active, onNavigate }: SidebarProps) {
+  const { settings } = useSettings();
+
   return (
     <aside className="flex flex-col h-screen sticky top-0 border-r border-[var(--border)] bg-[var(--sidebar)] px-3 py-4 gap-1 w-[220px] flex-shrink-0 overflow-y-auto">
       {/* Logo */}
@@ -73,7 +69,7 @@ export function Sidebar({ active, onNavigate }: SidebarProps) {
         </div>
         <div>
           <div className="font-bold text-[14px] text-[var(--ink-1)] leading-tight">Command Center</div>
-          <div className="text-[10px] text-[var(--ink-4)] uppercase tracking-wide">Ecommerce OS</div>
+          <div className="text-[10px] text-[var(--ink-4)] uppercase tracking-wide">Dropshipping OS</div>
         </div>
       </div>
 
@@ -96,9 +92,9 @@ export function Sidebar({ active, onNavigate }: SidebarProps) {
               >
                 <Icon size={14} className={isActive ? "text-[var(--gold-deep)]" : "text-[var(--ink-4)]"} />
                 <span className="flex-1">{n.label}</span>
-                {n.count != null && (
-                  <span className="text-[10px] font-mono text-[var(--ink-4)] bg-[var(--bg-inset)] px-1.5 py-0.5 rounded">
-                    {n.count}
+                {n.badge && !isActive && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--gold-soft)] text-[var(--gold-deep)] uppercase tracking-wide">
+                    {n.badge}
                   </span>
                 )}
               </button>
@@ -107,20 +103,23 @@ export function Sidebar({ active, onNavigate }: SidebarProps) {
         </div>
       ))}
 
+      {/* Active product widget */}
       <div className="mt-auto border-t border-[var(--border)] pt-3 px-1">
-        <div className="rounded-xl bg-white border border-[var(--border)] p-3 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(200,169,106,0.12),transparent_60%)] pointer-events-none" />
-          <div className="text-[10px] font-semibold text-[var(--gold-deep)] uppercase tracking-wider mb-1">Producto activo</div>
-          <div className="text-[12px] font-semibold text-[var(--ink-1)] mb-0.5">Regadera Anti-Sarro</div>
-          <div className="text-[11px] text-[var(--ink-3)]">3 creativos · En testing</div>
-        </div>
-        <div className="flex items-center gap-2 mt-3 px-1">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--gold)] to-[var(--gold-deep)] flex items-center justify-center text-white text-[11px] font-bold">M</div>
-          <div>
-            <div className="text-[12px] font-semibold text-[var(--ink-1)]">Mario / REVIARI</div>
-            <div className="text-[11px] text-[var(--ink-4)]">Plan Operador · MX/ES</div>
+        {settings.productName ? (
+          <div className="rounded-xl bg-white border border-[var(--border)] p-3 relative overflow-hidden cursor-pointer" onClick={() => onNavigate("products")}>
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(200,169,106,0.12),transparent_60%)] pointer-events-none" />
+            <div className="text-[10px] font-semibold text-[var(--gold-deep)] uppercase tracking-wider mb-1">Producto activo</div>
+            <div className="text-[12px] font-semibold text-[var(--ink-1)] mb-0.5 truncate">{settings.productName}</div>
+            <div className="text-[11px] text-[var(--ink-3)]">
+              {settings.aov > 0 ? `€${settings.aov} · ` : ""}{settings.beRoas > 0 ? `BE ROAS ${settings.beRoas}×` : "Configura benchmarks"}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-[var(--border)] p-3 text-center cursor-pointer hover:bg-white/50 transition-colors" onClick={() => onNavigate("settings")}>
+            <TrendingUp size={14} className="text-[var(--ink-4)] mx-auto mb-1" />
+            <div className="text-[11px] text-[var(--ink-4)]">Sin producto activo</div>
+          </div>
+        )}
       </div>
     </aside>
   );

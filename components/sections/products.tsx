@@ -1,16 +1,26 @@
 "use client";
 import { useState } from "react";
 import { useLocalStorage } from "@/lib/hooks";
-import { PRODUCTS, CAMPAIGNS, DEMO_CREATIVES, DECISIONS_LOG, TREND_ROAS, type Product, type ProductStatus } from "@/lib/data";
+import { CAMPAIGNS, DEMO_CREATIVES, DECISIONS_LOG, TREND_ROAS, type Product, type ProductStatus } from "@/lib/data";
 import { DecisionBadge, Badge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
-import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle, Package } from "lucide-react";
+import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle, Package, AlertTriangle, BookOpen } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
+interface Autopsy {
+  productId: string;
+  productName: string;
+  date: string;
+  totalSpend: number;
+  worked: string;
+  didntWork: string;
+  killReason: string;
+  learnings: string;
+}
 
 const STATUS_BADGE: Record<ProductStatus, { variant: "success" | "warning" | "danger" | "info" | "neutral" | "gold"; label: string }> = {
   testing:   { variant: "info",    label: "En testing"       },
@@ -78,25 +88,169 @@ function ProductCard({ p, onOpen }: { p: Product; onOpen: () => void }) {
   );
 }
 
+const AUTOPSY_QUESTIONS = [
+  { key: "worked",     label: "¿Qué funcionó?",                    hint: "Creativos, ángulos, audiencias, precio, oferta que generó interés..." },
+  { key: "didntWork",  label: "¿Qué no funcionó y por qué?",       hint: "Coste del producto, fricción en checkout, targeting equivocado..." },
+  { key: "killReason", label: "¿Razón principal de muerte?",       hint: "ROAS insostenible, problema con el proveedor, saturación de mercado..." },
+  { key: "learnings",  label: "¿Qué aprendizaje llevas al siguiente?", hint: "El insight más valioso que aplicarás directamente en el próximo producto" },
+];
+
+function AutopsyModal({ product, onClose, onSave }: {
+  product: Product;
+  onClose: () => void;
+  onSave: (a: Autopsy) => void;
+}) {
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({
+    worked: "", didntWork: "", killReason: "", learnings: "",
+  });
+
+  const q = AUTOPSY_QUESTIONS[step];
+  const isLast = step === AUTOPSY_QUESTIONS.length - 1;
+  const current = answers[q.key] ?? "";
+
+  const save = () => {
+    onSave({
+      productId: product.id,
+      productName: product.name,
+      date: new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }),
+      totalSpend: product.spend,
+      worked: answers.worked,
+      didntWork: answers.didntWork,
+      killReason: answers.killReason,
+      learnings: answers.learnings,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="bg-[var(--danger)] px-5 py-4">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle size={14} className="text-white/80" />
+            <div className="text-[11px] font-semibold text-white/80 uppercase tracking-wider">Autopsia de producto</div>
+          </div>
+          <div className="text-[17px] font-bold text-white">{product.name}</div>
+          <div className="text-[12px] text-white/70 mt-0.5">
+            {product.spend > 0 ? `Gasto total: ${eur(product.spend)}` : "Sin gasto registrado"} · {new Date().toLocaleDateString("es-MX")}
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="flex gap-1 px-5 pt-4">
+          {AUTOPSY_QUESTIONS.map((_, i) => (
+            <div key={i} className={cx("h-1.5 flex-1 rounded-full transition-all",
+              i < step ? "bg-[var(--danger)]" :
+              i === step ? "bg-[rgba(239,68,68,0.5)]" :
+              "bg-[var(--bg-inset)]")} />
+          ))}
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-2">
+              Pregunta {step + 1} de {AUTOPSY_QUESTIONS.length}
+            </div>
+            <div className="text-[16px] font-bold text-[var(--ink-1)] leading-snug">{q.label}</div>
+          </div>
+
+          <textarea
+            value={current}
+            onChange={e => setAnswers(prev => ({ ...prev, [q.key]: e.target.value }))}
+            rows={4}
+            placeholder={q.hint}
+            autoFocus
+            className="w-full px-3 py-2.5 text-[13px] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--danger)] focus:ring-2 focus:ring-[rgba(239,68,68,0.15)] resize-none leading-relaxed"
+          />
+
+          <div className="flex gap-2">
+            {step > 0 && (
+              <button onClick={() => setStep(s => s - 1)}
+                className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--ink-2)] text-[13px] hover:bg-[var(--bg-inset)]">
+                ← Atrás
+              </button>
+            )}
+            <button
+              onClick={() => isLast ? save() : setStep(s => s + 1)}
+              disabled={!current.trim()}
+              className={cx("flex-1 py-2.5 rounded-xl text-[13px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed",
+                isLast
+                  ? "bg-[var(--danger)] text-white hover:opacity-90"
+                  : "bg-[var(--ink-1)] text-white hover:bg-black")}>
+              {isLast ? "Guardar autopsia" : "Siguiente →"}
+            </button>
+          </div>
+
+          <button onClick={onClose}
+            className="w-full text-center text-[11px] text-[var(--ink-4)] hover:text-[var(--ink-2)] transition-colors py-1">
+            Saltar autopsia (no recomendado — pierdes el aprendizaje)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const DAYS = ["7 may","8 may","9 may","10 may","11 may","12 may","13 may"];
 
-function ProductDetail({ p: initialP, onBack, onStatusChange }: { p: Product; onBack: () => void; onStatusChange: (id: string, status: ProductStatus) => void }) {
+function ProductDetail({ p: initialP, onBack, onStatusChange }: {
+  p: Product;
+  onBack: () => void;
+  onStatusChange: (id: string, status: ProductStatus) => void;
+}) {
   const { success, info } = useToast();
   const [p, setP] = useState(initialP);
   const [tab, setTab] = useState("summary");
   const [notes, setNotes] = useState(p.notes ?? "");
   const [notesSaved, setNotesSaved] = useState(false);
+  const [showAutopsy, setShowAutopsy] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<ProductStatus | null>(null);
+  const [autopsies, setAutopsies] = useLocalStorage<Autopsy[]>("ecc-autopsies", []);
+
   const productCampaigns = CAMPAIGNS.filter(c => c.product === p.id);
   const productCreatives = p.id === "p1" ? DEMO_CREATIVES : [];
   const s = STATUS_BADGE[p.status];
+  const existingAutopsy = autopsies.find(a => a.productId === p.id);
 
   const chartData = DAYS.map((d, i) => ({ day: d, roas: TREND_ROAS[i], be: p.breRoas }));
-  const TABS = ["summary","métricas","creativos","rentabilidad","proveedor","notas","decisiones"].map(k => ({ id: k, label: k.charAt(0).toUpperCase() + k.slice(1) }));
+  const baseTabs = ["summary","métricas","creativos","rentabilidad","proveedor","notas","decisiones"];
+  const allTabs = existingAutopsy ? [...baseTabs, "autopsia"] : baseTabs;
+  const TABS = allTabs.map(k => ({ id: k, label: k.charAt(0).toUpperCase() + k.slice(1) }));
 
-  const changeStatus = (newStatus: ProductStatus) => {
+  const applyStatusChange = (newStatus: ProductStatus) => {
     setP(prev => ({ ...prev, status: newStatus, statusLabel: STATUS_BADGE[newStatus].label }));
     onStatusChange(p.id, newStatus);
     success("Estado actualizado", `${p.name} → ${STATUS_BADGE[newStatus].label}`);
+  };
+
+  const changeStatus = (newStatus: ProductStatus) => {
+    if (newStatus === "dead") {
+      setPendingStatus(newStatus);
+      setShowAutopsy(true);
+    } else {
+      applyStatusChange(newStatus);
+    }
+  };
+
+  const handleAutopsySave = (autopsy: Autopsy) => {
+    setAutopsies(prev => [...prev.filter(a => a.productId !== autopsy.productId), autopsy]);
+    if (pendingStatus) {
+      applyStatusChange(pendingStatus);
+      setPendingStatus(null);
+    }
+    setShowAutopsy(false);
+    setTab("autopsia");
+    success("Autopsia guardada", "Los aprendizajes están registrados. Aplícalos en tu próximo producto.");
+  };
+
+  const handleAutopsySkip = () => {
+    setShowAutopsy(false);
+    if (pendingStatus) {
+      applyStatusChange(pendingStatus);
+      setPendingStatus(null);
+    }
   };
 
   const saveNotes = () => {
@@ -107,6 +261,14 @@ function ProductDetail({ p: initialP, onBack, onStatusChange }: { p: Product; on
 
   return (
     <div className="space-y-5">
+      {showAutopsy && (
+        <AutopsyModal
+          product={p}
+          onClose={handleAutopsySkip}
+          onSave={handleAutopsySave}
+        />
+      )}
+
       <button onClick={onBack} className="flex items-center gap-1.5 text-[12px] text-[var(--ink-3)] hover:text-[var(--ink-1)] transition-colors">
         <ArrowLeft size={13} /> Volver a Productos
       </button>
@@ -131,18 +293,19 @@ function ProductDetail({ p: initialP, onBack, onStatusChange }: { p: Product; on
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => { info("Duplicar test", "Crea un nuevo producto basado en este configuración."); }} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><Copy size={13}/> Duplicar test</button>
-          <button onClick={() => window.open(`https://${p.supplier?.includes("Shopify") ? "admin.shopify.com" : "admin.shopify.com"}`, "_blank")} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><ExternalLink size={13}/> Ver en Shopify</button>
+          <button onClick={() => window.open("https://admin.shopify.com", "_blank")} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><ExternalLink size={13}/> Ver en Shopify</button>
           <button onClick={() => { success("Recomendación aplicada", p.diagnosis); setTab("notas"); }} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black"><Zap size={13}/> Aplicar recomendación</button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0.5 border-b border-[var(--border)]">
+      <div className="flex gap-0.5 border-b border-[var(--border)] overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={cx("px-3.5 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors",
+            className={cx("px-3.5 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap flex items-center gap-1.5",
               tab === t.id ? "text-[var(--ink-1)] border-[var(--ink-1)] font-semibold" : "text-[var(--ink-3)] border-transparent hover:text-[var(--ink-1)]"
             )}>
+            {t.id === "autopsia" && <BookOpen size={12} className="text-[var(--danger)]" />}
             {t.label}
           </button>
         ))}
@@ -378,6 +541,40 @@ function ProductDetail({ p: initialP, onBack, onStatusChange }: { p: Product; on
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {tab === "autopsia" && existingAutopsy && (
+        <div className="space-y-4">
+          <div className="bg-[var(--danger-soft)] border border-[rgba(239,68,68,0.2)] rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={16} className="text-[var(--danger)]" />
+              <div className="text-[13px] font-bold text-[var(--danger)]">Autopsia del producto</div>
+              <span className="ml-auto text-[11px] text-[var(--ink-4)]">{existingAutopsy.date}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { label: "Gasto total", value: eur(existingAutopsy.totalSpend) },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-white/60 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">{label}</div>
+                  <div className="font-mono font-bold text-[14px] text-[var(--ink-1)]">{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {[
+            { label: "✅ Qué funcionó", value: existingAutopsy.worked, color: "border-[rgba(34,197,94,0.2)] bg-[var(--success-soft)]" },
+            { label: "❌ Qué no funcionó", value: existingAutopsy.didntWork, color: "border-[rgba(239,68,68,0.2)] bg-[var(--danger-soft)]" },
+            { label: "💀 Razón de muerte", value: existingAutopsy.killReason, color: "border-[var(--border)] bg-white" },
+            { label: "🧠 Aprendizajes para el próximo", value: existingAutopsy.learnings, color: "border-[rgba(200,169,106,0.3)] bg-[var(--gold-soft)]" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className={`border rounded-xl p-4 ${color}`}>
+              <div className="text-[11px] font-semibold text-[var(--ink-3)] uppercase tracking-wider mb-2">{label}</div>
+              <div className="text-[14px] text-[var(--ink-1)] leading-relaxed">{value}</div>
+            </div>
+          ))}
         </div>
       )}
     </div>

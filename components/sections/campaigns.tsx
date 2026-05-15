@@ -1,13 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useLocalStorage } from "@/lib/hooks";
+import { useSettings } from "@/lib/settings-context";
 import { CAMPAIGNS, type Campaign, type DecisionKind } from "@/lib/data";
 import { DecisionBadge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { eur, pct } from "@/lib/utils";
+import { eur, pct, cx } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
-import { TrendingUp, TrendingDown, Eye, X, ChevronRight, Zap, Download, Plus } from "lucide-react";
+import { TrendingUp, TrendingDown, Eye, X, ChevronRight, Zap, Download, Plus, CheckCircle } from "lucide-react";
 
 function semaphoreColor(d: DecisionKind) {
   if (d === "scale") return "bg-[var(--success)]";
@@ -29,13 +30,179 @@ function RoasBar({ value, be }: { value: number; be: number }) {
   );
 }
 
+const SCALE_PHASES = [
+  {
+    phase: 1,
+    title: "Verificación previa",
+    icon: "🔍",
+    steps: [
+      "ROAS por encima del break-even 2 días seguidos (no solo 1)",
+      "CPM no ha subido más del 15% en los últimos 3 días",
+      "CTR estable o mejorando — ninguna caída abrupta",
+      "Frecuencia del anuncio por debajo de 2.5 en la semana",
+    ],
+  },
+  {
+    phase: 2,
+    title: "Escalar presupuesto +25%",
+    icon: "📈",
+    steps: [
+      'Abre Meta Ads Manager → Conjuntos de anuncios → campaña ganadora',
+      'Haz clic en "Editar" y sube el presupuesto diario exactamente un 25%',
+      "No toques la audiencia, ubicaciones ni los anuncios activos",
+      "Programa el cambio para las 00:00 (evita interrumpir el aprendizaje a mitad del día)",
+    ],
+  },
+  {
+    phase: 3,
+    title: "Duplica el conjunto",
+    icon: "⚡",
+    steps: [
+      "Duplica el conjunto ganador (clic derecho → Duplicar conjunto)",
+      "Asígnale un presupuesto del 50% del conjunto original",
+      "Mantén la misma audiencia — no cambies intereses ni lookalike",
+      "Lanza inmediatamente junto al original para repartir la entrega",
+    ],
+  },
+  {
+    phase: 4,
+    title: "Monitoreo 48 horas",
+    icon: "⏱",
+    steps: [
+      "NO hagas ningún cambio durante las primeras 48 horas tras escalar",
+      "Revisa cada 24h: si el ROAS cae más del 15% vs BE, pausa solo el duplicado",
+      "Si ambos conjuntos van bien tras 48h, considera un segundo +25%",
+      "Documenta el resultado en las notas del producto para futuros tests",
+    ],
+  },
+];
+
 interface CampaignState extends Campaign {
   budget: number;
   status: string;
   decision: DecisionKind;
 }
 
+function ScaleProtocolModal({ campaign, beRoas, onClose, onConfirm }: {
+  campaign: CampaignState;
+  beRoas: number;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [currentPhase, setCurrentPhase] = useState(0);
+  const [checked, setChecked] = useState<boolean[][]>(
+    SCALE_PHASES.map(p => p.steps.map(() => false))
+  );
+
+  const phase = SCALE_PHASES[currentPhase];
+  const allChecked = checked[currentPhase]?.every(Boolean);
+  const isLast = currentPhase === SCALE_PHASES.length - 1;
+
+  const toggle = (si: number) => {
+    setChecked(prev => prev.map((arr, pi) =>
+      pi === currentPhase ? arr.map((v, i) => i === si ? !v : v) : arr
+    ));
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Protocolo de escala">
+      <div className="space-y-5">
+        {/* Campaign info */}
+        <div className="bg-[var(--success-soft)] border border-[rgba(34,197,94,0.2)] rounded-xl p-3 flex items-center gap-3">
+          <TrendingUp size={16} className="text-[var(--success)] flex-shrink-0" />
+          <div>
+            <div className="text-[12px] font-semibold text-[var(--ink-1)]">{campaign.name}</div>
+            <div className="text-[11px] text-[var(--ink-3)]">
+              ROAS actual: <strong className="text-[var(--success)]">{campaign.roas.toFixed(2)}×</strong> · BE: {beRoas > 0 ? `${beRoas.toFixed(2)}×` : "no configurado"}
+            </div>
+          </div>
+        </div>
+
+        {/* Phase progress */}
+        <div className="flex gap-1.5">
+          {SCALE_PHASES.map((p, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+              <div className={cx("w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold border-2 transition-all",
+                i < currentPhase ? "bg-[var(--success)] border-[var(--success)] text-white" :
+                i === currentPhase ? "bg-[var(--ink-1)] border-[var(--ink-1)] text-white" :
+                "bg-white border-[var(--border)] text-[var(--ink-4)]")}>
+                {i < currentPhase ? <CheckCircle size={14} /> : i + 1}
+              </div>
+              <div className={cx("text-[9px] text-center leading-tight font-medium hidden sm:block",
+                i === currentPhase ? "text-[var(--ink-1)]" : "text-[var(--ink-4)]")}>
+                {p.title}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Phase connector line */}
+        <div className="relative -mt-2 mb-2 hidden sm:block">
+          <div className="h-px bg-[var(--border)] w-full" />
+        </div>
+
+        {/* Current phase */}
+        <div className="bg-[var(--gold-soft)] border border-[rgba(200,169,106,0.3)] rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[18px]">{phase.icon}</span>
+            <div className="text-[10px] font-semibold text-[var(--gold-deep)] uppercase tracking-wider">Fase {phase.phase} de {SCALE_PHASES.length}</div>
+          </div>
+          <div className="text-[15px] font-bold text-[var(--ink-1)]">{phase.title}</div>
+        </div>
+
+        <div className="space-y-2">
+          {phase.steps.map((step, si) => (
+            <button key={si} onClick={() => toggle(si)}
+              className={cx("w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all",
+                checked[currentPhase][si]
+                  ? "border-[var(--success)] bg-[var(--success-soft)]"
+                  : "border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]")}>
+              <div className={cx("w-5 h-5 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center",
+                checked[currentPhase][si]
+                  ? "border-[var(--success)] bg-[var(--success)] text-white"
+                  : "border-[var(--border)]")}>
+                {checked[currentPhase][si] && <CheckCircle size={12} />}
+              </div>
+              <div className={cx("text-[12px] leading-snug flex-1",
+                checked[currentPhase][si] ? "text-[var(--success)] line-through opacity-70" : "text-[var(--ink-1)]")}>
+                {step}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {!allChecked && (
+          <div className="text-[11px] text-[var(--ink-4)] text-center bg-[var(--bg-inset)] rounded-lg py-2">
+            Marca todos los pasos para continuar a la siguiente fase
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {currentPhase > 0 && (
+            <button onClick={() => setCurrentPhase(p => p - 1)}
+              className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--ink-2)] text-[13px] hover:bg-[var(--bg-inset)]">
+              ← Atrás
+            </button>
+          )}
+          {isLast ? (
+            <button onClick={onConfirm} disabled={!allChecked}
+              className="flex-1 py-2.5 rounded-xl bg-[var(--success)] text-white text-[13px] font-semibold hover:opacity-90 disabled:opacity-40 flex items-center justify-center gap-2">
+              <TrendingUp size={14} /> Confirmar — escalar +25% en app
+            </button>
+          ) : (
+            <button onClick={() => setCurrentPhase(p => p + 1)} disabled={!allChecked}
+              className="flex-1 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black disabled:opacity-40">
+              Siguiente fase →
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function Campaigns() {
+  const { settings } = useSettings();
   const { success, warning, info } = useToast();
   const [campaigns, setCampaigns] = useLocalStorage<CampaignState[]>("ecc-campaigns", []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -43,6 +210,9 @@ export function Campaigns() {
   const [newModal, setNewModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newBudget, setNewBudget] = useState("");
+  const [scaleProtocol, setScaleProtocol] = useState<CampaignState | null>(null);
+
+  const beRoas = settings.beRoas || 0;
 
   const filters = [
     { id: "all",   label: "Todas" },
@@ -55,10 +225,16 @@ export function Campaigns() {
   const visible = filter === "all" ? campaigns : campaigns.filter(c => c.decision === filter);
   const selected = campaigns.find(c => c.id === selectedId);
 
-  const scale = (id: string) => {
+  const doScale = (id: string) => {
     setCampaigns(prev => prev.map(c => c.id === id ? { ...c, budget: Math.round(c.budget * 1.25), status: "Activa" } : c));
     const c = campaigns.find(c => c.id === id);
-    success("Campaña escalada +25%", `Nuevo presupuesto: ${eur(Math.round((c?.budget ?? 0) * 1.25))}/día`);
+    success("Campaña escalada +25%", `Nuevo presupuesto: ${eur(Math.round((c?.budget ?? 0) * 1.25))}/día. Sigue el protocolo en Meta Ads Manager.`);
+    setScaleProtocol(null);
+    setSelectedId(null);
+  };
+
+  const openScaleProtocol = (campaign: CampaignState) => {
+    setScaleProtocol(campaign);
   };
 
   const pause = (id: string) => {
@@ -161,7 +337,7 @@ export function Campaigns() {
         <div>
           <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Meta Ads · {campaigns.length} campañas</div>
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Campañas activas</h1>
-          <p className="text-[13px] text-[var(--ink-3)] mt-1">Semáforo de decisión por campaña. Clic para diagnóstico completo.</p>
+          <p className="text-[13px] text-[var(--ink-3)] mt-1">Semáforo de decisión por campaña. Escalar activa el protocolo de 4 fases.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={exportCSV} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-1)] shadow-sm hover:bg-[var(--bg-inset)] flex items-center gap-1.5">
@@ -181,7 +357,7 @@ export function Campaigns() {
           { label: "Campañas activas", value: String(activeCamps), sub: `${campaigns.length} total` },
           { label: "Gasto total",      value: eur(totalSpend),     sub: "todas las campañas" },
           { label: "Ingresos total",   value: eur(totalRevenue),   sub: "atribuidos" },
-          { label: "ROAS agregado",    value: `${totalRoas.toFixed(2)}×`, sub: "consolidado", ok: totalRoas >= 2.3 },
+          { label: "ROAS agregado",    value: `${totalRoas.toFixed(2)}×`, sub: "consolidado", ok: beRoas > 0 ? totalRoas >= beRoas : undefined },
         ].map(s => (
           <div key={s.label} className="bg-white border border-[var(--border)] rounded-xl p-4 shadow-sm">
             <div className="text-[10px] text-[var(--ink-4)] uppercase tracking-wider mb-1">{s.label}</div>
@@ -227,7 +403,7 @@ export function Campaigns() {
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-1)]">{eur(c.spend)}</td>
                     <td className="px-4 py-3">
                       <div className="font-mono text-[13px] font-semibold text-[var(--ink-1)] mb-1">{c.roas.toFixed(2)}×</div>
-                      <RoasBar value={c.roas} be={2.3} />
+                      <RoasBar value={c.roas} be={beRoas || 2.3} />
                     </td>
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{eur(c.cpa)}</td>
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{pct(c.ctr)}</td>
@@ -260,7 +436,7 @@ export function Campaigns() {
                 {([
                   { label: "Gasto",    value: eur(selected.spend) },
                   { label: "Ingresos", value: eur(selected.revenue) },
-                  { label: "ROAS",     value: `${selected.roas.toFixed(2)}×`, ok: selected.roas >= 2.3 },
+                  { label: "ROAS",     value: `${selected.roas.toFixed(2)}×`, ok: beRoas > 0 ? selected.roas >= beRoas : undefined },
                   { label: "CPA",      value: eur(selected.cpa) },
                   { label: "CTR",      value: pct(selected.ctr), ok: selected.ctr >= 2 },
                   { label: "CPC",      value: eur(selected.cpc), ok: selected.cpc <= 0.6 },
@@ -275,8 +451,9 @@ export function Campaigns() {
               </div>
               <div className="pt-2 border-t border-[var(--border)] space-y-2">
                 {selected.decision === "scale" && (
-                  <button onClick={() => scale(selected.id)} className="w-full text-[12px] font-medium py-2 rounded-lg bg-[var(--success)] text-white flex items-center justify-center gap-1.5 hover:opacity-90">
-                    <TrendingUp size={12} /> Escalar +25% presupuesto
+                  <button onClick={() => openScaleProtocol(selected)}
+                    className="w-full text-[12px] font-medium py-2 rounded-lg bg-[var(--success)] text-white flex items-center justify-center gap-1.5 hover:opacity-90">
+                    <TrendingUp size={12} /> Protocolo de escala →
                   </button>
                 )}
                 {(selected.decision === "kill" || selected.status === "Activa") && (
@@ -311,6 +488,15 @@ export function Campaigns() {
           </div>
         </div>
       </Modal>
+
+      {scaleProtocol && (
+        <ScaleProtocolModal
+          campaign={scaleProtocol}
+          beRoas={beRoas}
+          onClose={() => setScaleProtocol(null)}
+          onConfirm={() => doScale(scaleProtocol.id)}
+        />
+      )}
     </div>
   );
 }

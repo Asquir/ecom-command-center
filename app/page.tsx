@@ -16,36 +16,42 @@ import { Orders } from "@/components/sections/orders";
 import { Expenses } from "@/components/sections/expenses";
 import { Reports } from "@/components/sections/reports";
 import { Settings } from "@/components/sections/settings";
-import { Bell, Moon, Sun, Plus, Search, X, TrendingUp, AlertTriangle, Clock } from "lucide-react";
+import { CashFlow } from "@/components/sections/cashflow";
+import { Lab } from "@/components/sections/lab";
+import { Bell, Moon, Sun, Plus, Search, X } from "lucide-react";
 
 const SECTION_LABELS: Record<Section, string> = {
-  dashboard:  "Dashboard",
-  calculator: "Calculadora de rentabilidad",
+  dashboard:  "Dashboard · IA",
+  calculator: "Calculadora",
   creatives:  "Creativos",
   rules:      "Reglas de decisión",
-  checklist:  "Checklist de lanzamiento",
+  checklist:  "Checklist",
   products:   "Productos",
   campaigns:  "Campañas",
-  planner:    "Planner de testing",
-  orders:     "Pedidos y Proveedores",
+  planner:    "Testing Plan",
+  orders:     "Pedidos",
   expenses:   "Gastos fijos",
   reports:    "Reportes",
   settings:   "Ajustes",
+  cashflow:   "Flujo de caja",
+  lab:        "Laboratorio A/B",
 };
 
 const SEARCH_INDEX: { label: string; section: Section; hint: string }[] = [
-  { label: "Dashboard",          section: "dashboard",  hint: "KPIs, funnel, recomendación" },
-  { label: "Campañas",           section: "campaigns",  hint: "Escalar, pausar, diagnóstico" },
-  { label: "Creativos",          section: "creatives",  hint: "Score, CTR, ángulos" },
-  { label: "Reglas de decisión", section: "rules",      hint: "Kill rules, scale rules" },
-  { label: "Calculadora",        section: "calculator", hint: "Break-even, CPA, ROAS" },
-  { label: "Productos",          section: "products",   hint: "Gestión de productos" },
-  { label: "Planner",            section: "planner",    hint: "7 días, checklist diario" },
-  { label: "Pedidos",            section: "orders",     hint: "Shopify, proveedores" },
-  { label: "Gastos fijos",       section: "expenses",   hint: "Shopify, apps, margen" },
-  { label: "Reportes",           section: "reports",    hint: "Reporte diario, semanal" },
-  { label: "Ajustes",            section: "settings",   hint: "Moneda, benchmarks, integraciones" },
-  { label: "Checklist",          section: "checklist",  hint: "Lanzamiento, requisitos" },
+  { label: "Dashboard IA",         section: "dashboard",  hint: "Score, señales, análisis IA, decisión" },
+  { label: "Campañas",             section: "campaigns",  hint: "Kill/scale, protocolo de escala" },
+  { label: "Creativos",            section: "creatives",  hint: "Fatiga de creativo, hook rate, CTR" },
+  { label: "Reglas kill/scale",    section: "rules",      hint: "Kill rules, scale rules, árbol de decisión" },
+  { label: "Lab A/B",              section: "lab",        hint: "Test estadístico, significancia, lift" },
+  { label: "Flujo de caja",        section: "cashflow",   hint: "Proyección 90 días, riesgo de liquidez" },
+  { label: "Calculadora",          section: "calculator", hint: "Break-even, CPA, ROAS, escenarios" },
+  { label: "Productos",            section: "products",   hint: "Gestión, autopsia, status" },
+  { label: "Testing Plan",         section: "planner",    hint: "7 días, checklist diario" },
+  { label: "Pedidos",              section: "orders",     hint: "Shopify, proveedores" },
+  { label: "Gastos fijos",         section: "expenses",   hint: "Shopify, apps, margen" },
+  { label: "Reportes",             section: "reports",    hint: "Reporte diario y semanal" },
+  { label: "Ajustes",              section: "settings",   hint: "Benchmarks, moneda, producto" },
+  { label: "Checklist",            section: "checklist",  hint: "Lanzamiento de producto" },
 ];
 
 export default function Home() {
@@ -72,19 +78,13 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  if (!settings.onboarded) {
-    return <Onboarding />;
-  }
+  if (!settings.onboarded) return <Onboarding />;
 
   const searchResults = searchQ.length > 0
     ? SEARCH_INDEX.filter(s => s.label.toLowerCase().includes(searchQ.toLowerCase()) || s.hint.toLowerCase().includes(searchQ.toLowerCase()))
     : [];
 
-  const navigate = (s: Section) => {
-    setSection(s);
-    setSearchQ("");
-    setSearchOpen(false);
-  };
+  const navigate = (s: Section) => { setSection(s); setSearchQ(""); setSearchOpen(false); };
 
   const sectionBody: Record<Section, React.ReactNode> = {
     dashboard:  <Dashboard />,
@@ -99,6 +99,8 @@ export default function Home() {
     expenses:   <Expenses />,
     reports:    <Reports />,
     settings:   <Settings />,
+    cashflow:   <CashFlow />,
+    lab:        <Lab />,
   };
 
   return (
@@ -108,7 +110,7 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-[58px] border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-20 flex items-center gap-4 px-6">
           <div className="flex items-center gap-2 text-[13px] text-[var(--ink-3)]">
-            <span className="hidden sm:block">Command Center</span>
+            <span className="hidden sm:block font-medium">Ecom Command Center</span>
             <span className="text-[var(--ink-5)] hidden sm:block">/</span>
             <strong className="text-[var(--ink-1)] font-semibold">{SECTION_LABELS[section]}</strong>
           </div>
@@ -116,22 +118,15 @@ export default function Home() {
             {/* Search */}
             <div ref={searchRef} className="relative">
               <Search size={13} className="absolute left-2.5 top-2.5 text-[var(--ink-4)] pointer-events-none" />
-              <input
-                value={searchQ}
-                onChange={e => { setSearchQ(e.target.value); setSearchOpen(true); }}
-                onFocus={() => setSearchOpen(true)}
-                placeholder="Buscar sección…"
-                className="pl-8 pr-3 h-8 w-40 sm:w-48 text-[13px] border border-[var(--border)] rounded-lg bg-white outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[rgba(200,169,106,0.15)] placeholder:text-[var(--ink-4)] transition-all"
-              />
+              <input value={searchQ} onChange={e => { setSearchQ(e.target.value); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)}
+                placeholder="Buscar…" className="pl-8 pr-3 h-8 w-36 sm:w-44 text-[13px] border border-[var(--border)] rounded-lg bg-white outline-none focus:border-[var(--gold)] focus:w-52 placeholder:text-[var(--ink-4)] transition-all" />
               {searchOpen && searchResults.length > 0 && (
-                <div className="absolute top-full mt-1 right-0 w-64 bg-white border border-[var(--border)] rounded-xl shadow-lg overflow-hidden z-30">
+                <div className="absolute top-full mt-1 right-0 w-72 bg-white border border-[var(--border)] rounded-xl shadow-lg overflow-hidden z-30">
                   {searchResults.map(r => (
                     <button key={r.section} onClick={() => navigate(r.section)}
-                      className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-[var(--bg-inset)] text-left transition-colors">
-                      <div>
-                        <div className="text-[12px] font-semibold text-[var(--ink-1)]">{r.label}</div>
-                        <div className="text-[11px] text-[var(--ink-4)]">{r.hint}</div>
-                      </div>
+                      className="w-full flex flex-col px-3 py-2.5 hover:bg-[var(--bg-inset)] text-left transition-colors border-b border-[var(--border)] last:border-0">
+                      <div className="text-[12px] font-semibold text-[var(--ink-1)]">{r.label}</div>
+                      <div className="text-[11px] text-[var(--ink-4)]">{r.hint}</div>
                     </button>
                   ))}
                 </div>
@@ -141,19 +136,19 @@ export default function Home() {
             {/* Bell */}
             <div ref={bellRef} className="relative">
               <button onClick={() => setBellOpen(o => !o)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)] transition-colors relative">
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)] transition-colors">
                 <Bell size={14} className="text-[var(--ink-3)]" />
               </button>
               {bellOpen && (
                 <div className="absolute top-full mt-1 right-0 w-72 bg-white border border-[var(--border)] rounded-xl shadow-lg overflow-hidden z-30">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
                     <div className="text-[13px] font-semibold text-[var(--ink-1)]">Notificaciones</div>
-                    <button onClick={() => setBellOpen(false)} className="text-[var(--ink-4)] hover:text-[var(--ink-2)]"><X size={13} /></button>
+                    <button onClick={() => setBellOpen(false)}><X size={13} className="text-[var(--ink-4)]" /></button>
                   </div>
                   <div className="px-4 py-8 text-center">
                     <Bell size={20} className="text-[var(--ink-5)] mx-auto mb-2" />
-                    <div className="text-[12px] text-[var(--ink-4)]">Sin notificaciones por ahora</div>
-                    <div className="text-[11px] text-[var(--ink-5)] mt-0.5">Activa las alertas en Ajustes</div>
+                    <div className="text-[12px] text-[var(--ink-4)]">Sin alertas activas</div>
+                    <div className="text-[11px] text-[var(--ink-5)] mt-0.5">Actívalas en Ajustes</div>
                   </div>
                 </div>
               )}
