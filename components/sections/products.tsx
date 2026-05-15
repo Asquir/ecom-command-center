@@ -7,7 +7,8 @@ import { ScoreRing } from "@/components/ui/score-ring";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
-import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
+import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle, Package } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 
@@ -384,24 +385,151 @@ function ProductDetail({ p: initialP, onBack, onStatusChange }: { p: Product; on
 }
 
 const STATUS_FILTERS = [
-  { id: "all",       label: "Todos",           count: PRODUCTS.length },
-  { id: "research",  label: "Investigación",   count: 1 },
-  { id: "webprep",   label: "Preparando web",  count: 1 },
-  { id: "testing",   label: "En testing",      count: 1 },
-  { id: "validated", label: "Validado",        count: 1 },
-  { id: "paused",    label: "Pausado",         count: 1 },
-  { id: "dead",      label: "Muerto",          count: 1 },
+  { id: "all",       label: "Todos" },
+  { id: "research",  label: "Investigación" },
+  { id: "webprep",   label: "Preparando web" },
+  { id: "testing",   label: "En testing" },
+  { id: "validated", label: "Validado" },
+  { id: "paused",    label: "Pausado" },
+  { id: "dead",      label: "Muerto" },
 ];
+
+function NewProductModal({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (p: Product) => void }) {
+  const [name, setName] = useState("");
+  const [niche, setNiche] = useState("");
+  const [country, setCountry] = useState("🇲🇽 MX");
+  const [price, setPrice] = useState("");
+  const [cogs, setCogs] = useState("");
+  const [shipping, setShipping] = useState("0");
+  const [supplier, setSupplier] = useState("");
+  const [shipTime, setShipTime] = useState("9–14 días");
+  const [status, setStatus] = useState<ProductStatus>("research");
+
+  const p = parseFloat(price) || 0;
+  const c = parseFloat(cogs) || 0;
+  const s = parseFloat(shipping) || 0;
+  const margin = p > 0 ? Math.max(0, ((p - c - s) / p) * 100) : 0;
+  const beCpa = p > 0 ? +(p - c - s).toFixed(2) : 0;
+  const beRoas = margin > 0 ? +(100 / margin).toFixed(2) : 0;
+
+  const add = () => {
+    if (!name.trim() || !p) return;
+    const product: Product = {
+      id: `p${Date.now()}`, name: name.trim(), niche: niche.trim() || "Sin nicho",
+      country, status, statusLabel: STATUS_BADGE[status].label,
+      started: new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long" }),
+      spend: 0, sales: 0, revenue: 0, profit: 0,
+      roas: 0, cpa: 0, breCpa: beCpa, breRoas: beRoas,
+      margin: +margin.toFixed(1), cogs: c, shippingCost: s, appsCost: 0,
+      supplier: supplier.trim() || "Por definir", shipTime,
+      score: 50, diagnosis: "Producto recién añadido. Configura tu primera campaña para empezar el testing.",
+      creativesCount: 0, campaignsCount: 0, tone: "neutral",
+    };
+    onAdd(product);
+    setName(""); setNiche(""); setPrice(""); setCogs(""); setShipping("0"); setSupplier(""); setStatus("research");
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Nuevo producto">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3">
+          <div>
+            <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Nombre del producto *</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Masajeador eléctrico cuello"
+              className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Nicho</label>
+              <input value={niche} onChange={e => setNiche(e.target.value)} placeholder="Ej: Hogar / Salud"
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">País</label>
+              <select value={country} onChange={e => setCountry(e.target.value)}
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] appearance-none bg-white">
+                <option value="🇲🇽 MX">🇲🇽 México</option>
+                <option value="🇪🇸 ES">🇪🇸 España</option>
+                <option value="🇺🇸 US">🇺🇸 EE.UU.</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Precio venta *</label>
+              <input value={price} onChange={e => setPrice(e.target.value)} placeholder="39" type="number"
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Coste producto</label>
+              <input value={cogs} onChange={e => setCogs(e.target.value)} placeholder="12" type="number"
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Coste envío</label>
+              <input value={shipping} onChange={e => setShipping(e.target.value)} placeholder="0" type="number"
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+          </div>
+          {p > 0 && (
+            <div className="grid grid-cols-3 gap-2 bg-[var(--bg-inset)] rounded-xl p-3">
+              <div><div className="text-[10px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">Margen</div><div className="font-mono font-bold text-[14px]">{margin.toFixed(1)}%</div></div>
+              <div><div className="text-[10px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">BE CPA</div><div className="font-mono font-bold text-[14px]">{beCpa}€</div></div>
+              <div><div className="text-[10px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">BE ROAS</div><div className="font-mono font-bold text-[14px]">{beRoas}×</div></div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Proveedor</label>
+              <input value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="CJ Dropshipping, AliExpress..."
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Tiempo envío</label>
+              <input value={shipTime} onChange={e => setShipTime(e.target.value)} placeholder="9–14 días"
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Estado inicial</label>
+            <select value={status} onChange={e => setStatus(e.target.value as ProductStatus)}
+              className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] appearance-none bg-white">
+              <option value="research">En investigación</option>
+              <option value="webprep">Preparando web</option>
+              <option value="testing">En testing</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2 pt-2">
+          <button onClick={add} disabled={!name.trim() || !p}
+            className="flex-1 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed">
+            Añadir producto
+          </button>
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--ink-3)] text-[13px] hover:bg-[var(--bg-inset)]">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 export function Products() {
   const { success } = useToast();
-  const [products, setProducts] = useLocalStorage("ecc-products", PRODUCTS.map(p => ({ ...p })));
+  const [products, setProducts] = useLocalStorage<Product[]>("ecc-products", []);
   const [view, setView] = useState<"cards" | "table">("cards");
   const [filter, setFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [newModal, setNewModal] = useState(false);
 
   const handleStatusChange = (id: string, status: ProductStatus) => {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status, statusLabel: STATUS_BADGE[status].label } : p));
+  };
+
+  const addProduct = (p: Product) => {
+    setProducts(prev => [...prev, p]);
+    success("Producto añadido", p.name);
   };
 
   const filtered = products.filter(p => filter === "all" || p.status === filter);
@@ -409,11 +537,36 @@ export function Products() {
 
   if (selected) return <ProductDetail p={selected} onBack={() => setSelectedId(null)} onStatusChange={handleStatusChange} />;
 
+  if (products.length === 0) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Catálogo</div>
+          <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Productos</h1>
+        </div>
+        <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm flex flex-col items-center justify-center py-20 gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--bg-inset)] flex items-center justify-center">
+            <Package size={22} className="text-[var(--ink-4)]" />
+          </div>
+          <div className="text-center">
+            <h3 className="text-[15px] font-semibold text-[var(--ink-1)] mb-1">Sin productos todavía</h3>
+            <p className="text-[13px] text-[var(--ink-4)] max-w-xs">Añade el producto que estás testeando para trackear su rentabilidad, fases y decisiones.</p>
+          </div>
+          <button onClick={() => setNewModal(true)}
+            className="px-5 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black transition-colors flex items-center gap-2">
+            <Package size={14} /> Añadir primer producto
+          </button>
+        </div>
+        <NewProductModal open={newModal} onClose={() => setNewModal(false)} onAdd={addProduct} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Catálogo · {PRODUCTS.length} productos</div>
+          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Catálogo · {products.length} productos</div>
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Productos</h1>
           <p className="text-[13px] text-[var(--ink-3)] mt-1">Gestiona cada producto en su fase de testeo y validación.</p>
         </div>
@@ -425,19 +578,22 @@ export function Products() {
               </button>
             ))}
           </div>
-          <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black">+ Nuevo producto</button>
+          <button onClick={() => setNewModal(true)} className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black">+ Nuevo producto</button>
         </div>
       </div>
 
       <div className="flex gap-1.5 flex-wrap">
-        {STATUS_FILTERS.map(s => (
-          <button key={s.id} onClick={() => setFilter(s.id)}
-            className={cx("text-[12px] px-3 py-1.5 rounded-lg border font-medium transition-colors",
-              filter === s.id ? "bg-[var(--ink-1)] text-white border-[var(--ink-1)]" : "bg-white text-[var(--ink-2)] border-[var(--border)] hover:bg-[var(--bg-inset)]"
-            )}>
-            {s.label} <span className="opacity-60 ml-1">{s.count}</span>
-          </button>
-        ))}
+        {STATUS_FILTERS.map(s => {
+          const count = s.id === "all" ? products.length : products.filter(p => p.status === s.id).length;
+          return (
+            <button key={s.id} onClick={() => setFilter(s.id)}
+              className={cx("text-[12px] px-3 py-1.5 rounded-lg border font-medium transition-colors",
+                filter === s.id ? "bg-[var(--ink-1)] text-white border-[var(--ink-1)]" : "bg-white text-[var(--ink-2)] border-[var(--border)] hover:bg-[var(--bg-inset)]"
+              )}>
+              {s.label} <span className="opacity-60 ml-1">{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {view === "cards" ? (
@@ -484,6 +640,7 @@ export function Products() {
           </table>
         </div>
       )}
+      <NewProductModal open={newModal} onClose={() => setNewModal(false)} onAdd={addProduct} />
     </div>
   );
 }

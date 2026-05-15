@@ -108,7 +108,7 @@ type CreativeState = Creative & { paused?: boolean };
 
 export function Creatives() {
   const { success, warning, info } = useToast();
-  const [creatives, setCreatives] = useLocalStorage<CreativeState[]>("ecc-creatives", DEMO_CREATIVES.map(c => ({ ...c })));
+  const [creatives, setCreatives] = useLocalStorage<CreativeState[]>("ecc-creatives", []);
   const [sortBy, setSortBy] = useState<"score" | "ctr" | "spend">("score");
   const [filterAngle, setFilterAngle] = useState<string>("all");
   const [variationModal, setVariationModal] = useState<CreativeState | null>(null);
@@ -187,6 +187,63 @@ export function Creatives() {
     success("Creativo añadido", newC.name);
     setNewHook(""); setNewAngle(""); setNewVoice("Chica"); setAddModal(false);
   };
+
+  if (creatives.length === 0 && !addModal) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Creativos</div>
+          <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Banco de creativos</h1>
+        </div>
+        <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm flex flex-col items-center justify-center py-20 gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--bg-inset)] flex items-center justify-center">
+            <Zap size={22} className="text-[var(--ink-4)]" />
+          </div>
+          <div className="text-center">
+            <h3 className="text-[15px] font-semibold text-[var(--ink-1)] mb-1">Sin creativos todavía</h3>
+            <p className="text-[13px] text-[var(--ink-4)] max-w-xs">Añade tus anuncios activos para trackear CTR, hook rate y tomar decisiones de kill/scale.</p>
+          </div>
+          <button onClick={() => setAddModal(true)}
+            className="px-5 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black transition-colors flex items-center gap-2">
+            <Plus size={14} /> Añadir primer creativo
+          </button>
+        </div>
+        {addModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
+              <h3 className="text-[15px] font-semibold text-[var(--ink-1)]">Nuevo creativo</h3>
+              <div>
+                <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Ángulo / concepto</label>
+                <input value={newAngle} onChange={e => setNewAngle(e.target.value)} placeholder="Ej: Dolor de espalda, Ahorro, Viralidad..."
+                  className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Hook (primera línea del anuncio)</label>
+                <input value={newHook} onChange={e => setNewHook(e.target.value)} placeholder="Ej: ¿Por qué tu espalda duele cada mañana?"
+                  className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+              </div>
+              <div>
+                <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Voz / presentador</label>
+                <select value={newVoice} onChange={e => setNewVoice(e.target.value)}
+                  className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none bg-white appearance-none">
+                  {["Chica", "Chico", "IA", "UGC", "Texto"].map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={handleAddCreative} disabled={!newHook.trim() || !newAngle.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black disabled:opacity-40">
+                  Añadir creativo
+                </button>
+                <button onClick={() => setAddModal(false)} className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--ink-3)] text-[13px]">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

@@ -37,9 +37,7 @@ interface CampaignState extends Campaign {
 
 export function Campaigns() {
   const { success, warning, info } = useToast();
-  const [campaigns, setCampaigns] = useLocalStorage<CampaignState[]>(
-    "ecc-campaigns", CAMPAIGNS.map(c => ({ ...c }))
-  );
+  const [campaigns, setCampaigns] = useLocalStorage<CampaignState[]>("ecc-campaigns", []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
   const [newModal, setNewModal] = useState(false);
@@ -114,6 +112,48 @@ export function Campaigns() {
   const totalRevenue = campaigns.reduce((s, c) => s + c.revenue, 0);
   const totalRoas    = totalSpend > 0 ? totalRevenue / totalSpend : 0;
   const activeCamps  = campaigns.filter(c => c.status === "Activa").length;
+
+  if (campaigns.length === 0 && !newModal) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Meta Ads</div>
+          <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Campañas activas</h1>
+        </div>
+        <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm flex flex-col items-center justify-center py-20 gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--bg-inset)] flex items-center justify-center">
+            <TrendingUp size={22} className="text-[var(--ink-4)]" />
+          </div>
+          <div className="text-center">
+            <h3 className="text-[15px] font-semibold text-[var(--ink-1)] mb-1">Sin campañas todavía</h3>
+            <p className="text-[13px] text-[var(--ink-4)] max-w-xs">Añade tu primera campaña para empezar el tracking de decisiones de kill/scale.</p>
+          </div>
+          <button onClick={() => setNewModal(true)}
+            className="px-5 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black transition-colors flex items-center gap-2">
+            <Plus size={14} /> Crear primera campaña
+          </button>
+        </div>
+        <Modal open={newModal} onClose={() => setNewModal(false)} title="Nueva campaña">
+          <div className="space-y-4">
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Nombre de la campaña</label>
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="PRODUCTO · OBJETIVO · TIPO"
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Presupuesto diario</label>
+              <input value={newBudget} onChange={e => setNewBudget(e.target.value)} placeholder="15" type="number"
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button onClick={createCampaign} className="flex-1 py-2 rounded-lg bg-[var(--ink-1)] text-white text-[13px] font-medium hover:bg-black">Crear campaña</button>
+              <button onClick={() => setNewModal(false)} className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[13px] hover:bg-[var(--bg-inset)]">Cancelar</button>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

@@ -19,14 +19,18 @@ export interface AppSettings {
   notifyScale: boolean;
   notifyPrimeTime: boolean;
   autoReport: boolean;
+  productName: string;
+  productCost: number;
+  onboarded: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   currency: "EUR", country: "MX", timezone: "America/Mexico_City",
-  aov: 39, margin: 22.5, beCpa: 17, beRoas: 2.3,
+  aov: 0, margin: 0, beCpa: 0, beRoas: 0,
   ctrTarget: 2, cpcMax: 0.6, hookTarget: 35,
-  pixelId: "4827391048", shopifyUrl: "reviari.myshopify.com",
+  pixelId: "", shopifyUrl: "",
   notifyKill: true, notifyScale: true, notifyPrimeTime: true, autoReport: false,
+  productName: "", productCost: 0, onboarded: false,
 };
 
 interface SettingsCtx {
