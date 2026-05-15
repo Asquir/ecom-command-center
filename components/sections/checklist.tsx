@@ -1,10 +1,12 @@
 "use client";
 import { CHECKLIST_ITEMS } from "@/lib/data";
 import { useLocalStorage } from "@/lib/hooks";
+import { useSettings } from "@/lib/settings-context";
 import { cx } from "@/lib/utils";
 import { Check, AlertCircle } from "lucide-react";
 
 export function Checklist() {
+  const { settings } = useSettings();
   const [items, setItems] = useLocalStorage("ecc-checklist", CHECKLIST_ITEMS);
 
   const toggle = (id: string) =>
@@ -40,10 +42,10 @@ export function Checklist() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-[var(--gold-soft)] flex items-center justify-center">
-                  <span className="font-mono text-[11px] font-bold text-[var(--gold-deep)]">RG</span>
+                  <span className="font-mono text-[11px] font-bold text-[var(--gold-deep)]">{settings.productName ? settings.productName.slice(0, 2).toUpperCase() : "—"}</span>
                 </div>
                 <div>
-                  <div className="font-semibold text-[14px] text-[var(--ink-1)]">Regadera Anti-Sarro Premium</div>
+                  <div className="font-semibold text-[14px] text-[var(--ink-1)]">{settings.productName || "Sin producto activo"}</div>
                   <div className="text-[12px] text-[var(--ink-3)]">
                     {isReady ? "✓ Listo para lanzar" : `Faltan ${total - done} puntos para estar listo`}
                   </div>

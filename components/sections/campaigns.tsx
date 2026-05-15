@@ -8,7 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
-import { TrendingUp, TrendingDown, Eye, X, ChevronRight, Zap, Download, Plus, CheckCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Eye, X, ChevronRight, Zap, Download, Plus, CheckCircle, Trash2 } from "lucide-react";
 
 function semaphoreColor(d: DecisionKind) {
   if (d === "scale") return "bg-[var(--success)]";
@@ -248,6 +248,14 @@ export function Campaigns() {
     setSelectedId(null);
   };
 
+  const deleteCampaign = (id: string) => {
+    const c = campaigns.find(x => x.id === id);
+    if (!confirm(`¿Eliminar la campaña "${c?.name}"? Esta acción no se puede deshacer.`)) return;
+    setCampaigns(prev => prev.filter(x => x.id !== id));
+    warning("Campaña eliminada", c?.name);
+    setSelectedId(null);
+  };
+
   const applyAll = () => {
     let scaled = 0, paused = 0;
     setCampaigns(prev => prev.map(c => {
@@ -409,7 +417,15 @@ export function Campaigns() {
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{pct(c.ctr)}</td>
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{c.purchases}</td>
                     <td className="px-4 py-3"><DecisionBadge kind={c.decision} /></td>
-                    <td className="px-4 py-3"><ChevronRight size={14} className={`text-[var(--ink-4)] transition-transform ${isSelected ? "rotate-90" : ""}`} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); deleteCampaign(c.id); }}
+                          className="text-[var(--ink-4)] hover:text-[var(--danger)] transition-colors" title="Eliminar">
+                          <Trash2 size={13} />
+                        </button>
+                        <ChevronRight size={14} className={`text-[var(--ink-4)] transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -463,6 +479,9 @@ export function Campaigns() {
                 )}
                 <button onClick={() => markReviewed(selected.id)} className="w-full text-[12px] font-medium py-2 rounded-lg border border-[var(--border)] text-[var(--ink-2)] flex items-center justify-center gap-1.5 hover:bg-[var(--bg-inset)]">
                   <Eye size={12} /> Marcar revisada
+                </button>
+                <button onClick={() => deleteCampaign(selected.id)} className="w-full text-[12px] font-medium py-2 rounded-lg border border-[var(--border)] text-[var(--danger)] flex items-center justify-center gap-1.5 hover:bg-[var(--danger-soft)]">
+                  <Trash2 size={12} /> Eliminar campaña
                 </button>
               </div>
             </div>

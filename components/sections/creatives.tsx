@@ -9,7 +9,7 @@ import { ScoreRing } from "@/components/ui/score-ring";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
-import { Copy, Pause, Play, Zap, SortAsc, Plus, X, CheckCircle, AlertTriangle, Flame } from "lucide-react";
+import { Copy, Pause, Play, Zap, SortAsc, Plus, X, CheckCircle, AlertTriangle, Flame, Trash2 } from "lucide-react";
 
 const TONE_BG: Record<string, [string, string]> = {
   neutral: ["#1a1a1a", "#3a3a3a"],
@@ -42,13 +42,14 @@ function MetricPill({ label, value, good }: { label: string; value: string; good
   );
 }
 
-function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariation }: {
+function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariation, onDelete }: {
   c: Creative & { paused?: boolean };
   ctrTarget: number;
   hookTarget: number;
   onPause: () => void;
   onDuplicate: () => void;
   onVariation: () => void;
+  onDelete: () => void;
 }) {
   const isPaused = c.paused || c.status === "Pausado";
   const fatigue = fatigueScore(c.hookRate, c.holdRate, c.ctr, hookTarget, ctrTarget);
@@ -115,6 +116,10 @@ function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariat
           isPaused ? "text-[var(--success)] hover:bg-[var(--success-soft)]" : "text-[var(--danger)] hover:bg-[var(--danger-soft)]"
         )}>
           {isPaused ? <><Play size={12} /> Activar</> : <><Pause size={12} /> Pausar</>}
+        </button>
+        <button onClick={onDelete} title="Eliminar creativo"
+          className="px-2.5 flex items-center justify-center text-[11px] text-[var(--ink-4)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors border-l border-[var(--border)]">
+          <Trash2 size={12} />
         </button>
       </div>
     </div>
@@ -198,6 +203,12 @@ export function Creatives() {
     setCreatives(prev => [...prev, variation]);
     success("Variación creada", variation.name);
     setNewHook(""); setNewAngle(""); setVariationModal(null);
+  };
+
+  const handleDelete = (c: CreativeState) => {
+    if (!confirm(`¿Eliminar el creativo "${c.name}"?`)) return;
+    setCreatives(prev => prev.filter(x => x.id !== c.id));
+    warning("Creativo eliminado", c.name);
   };
 
   const handleAddCreative = () => {
@@ -350,6 +361,7 @@ export function Creatives() {
             onPause={() => handlePause(c.id)}
             onDuplicate={() => handleDuplicate(c)}
             onVariation={() => { setVariationModal(c); setNewAngle(c.angle); }}
+            onDelete={() => handleDelete(c)}
           />
         ))}
       </div>

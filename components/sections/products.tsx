@@ -1,15 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useLocalStorage } from "@/lib/hooks";
-import { CAMPAIGNS, DEMO_CREATIVES, DECISIONS_LOG, TREND_ROAS, type Product, type ProductStatus } from "@/lib/data";
+import { type Product, type ProductStatus, type Creative, type Campaign } from "@/lib/data";
 import { DecisionBadge, Badge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
-import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle, Package, AlertTriangle, BookOpen } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle, Package, AlertTriangle, BookOpen, Trash2, TrendingUp } from "lucide-react";
 
 interface Autopsy {
   productId: string;
@@ -193,12 +192,11 @@ function AutopsyModal({ product, onClose, onSave }: {
   );
 }
 
-const DAYS = ["7 may","8 may","9 may","10 may","11 may","12 may","13 may"];
-
-function ProductDetail({ p: initialP, onBack, onStatusChange }: {
+function ProductDetail({ p: initialP, onBack, onStatusChange, onDelete }: {
   p: Product;
   onBack: () => void;
   onStatusChange: (id: string, status: ProductStatus) => void;
+  onDelete: (id: string) => void;
 }) {
   const { success, info } = useToast();
   const [p, setP] = useState(initialP);
@@ -209,13 +207,15 @@ function ProductDetail({ p: initialP, onBack, onStatusChange }: {
   const [pendingStatus, setPendingStatus] = useState<ProductStatus | null>(null);
   const [autopsies, setAutopsies] = useLocalStorage<Autopsy[]>("ecc-autopsies", []);
 
-  const productCampaigns = CAMPAIGNS.filter(c => c.product === p.id);
-  const productCreatives = p.id === "p1" ? DEMO_CREATIVES : [];
+  const [allCampaigns] = useLocalStorage<Campaign[]>("ecc-campaigns", []);
+  const [allCreatives] = useLocalStorage<Creative[]>("ecc-creatives", []);
+  const productCampaigns = allCampaigns.filter(c => c.product === p.id);
+  const productCreatives = allCreatives;
   const s = STATUS_BADGE[p.status];
   const existingAutopsy = autopsies.find(a => a.productId === p.id);
 
-  const chartData = DAYS.map((d, i) => ({ day: d, roas: TREND_ROAS[i], be: p.breRoas }));
-  const baseTabs = ["summary","métricas","creativos","rentabilidad","proveedor","notas","decisiones"];
+  const hasMetrics = p.spend > 0 || p.revenue > 0 || p.sales > 0;
+  const baseTabs = ["summary","métricas","creativos","rentabilidad","proveedor","notas"];
   const allTabs = existingAutopsy ? [...baseTabs, "autopsia"] : baseTabs;
   const TABS = allTabs.map(k => ({ id: k, label: k.charAt(0).toUpperCase() + k.slice(1) }));
 
@@ -295,6 +295,8 @@ function ProductDetail({ p: initialP, onBack, onStatusChange }: {
           <button onClick={() => { info("Duplicar test", "Crea un nuevo producto basado en este configuración."); }} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><Copy size={13}/> Duplicar test</button>
           <button onClick={() => window.open("https://admin.shopify.com", "_blank")} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><ExternalLink size={13}/> Ver en Shopify</button>
           <button onClick={() => { success("Recomendación aplicada", p.diagnosis); setTab("notas"); }} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black"><Zap size={13}/> Aplicar recomendación</button>
+          <button onClick={() => { if (confirm(`¿Eliminar definitivamente "${p.name}"? Esta acción no se puede deshacer.`)) { onDelete(p.id); onBack(); } }}
+            title="Eliminar producto" className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Trash2 size={13}/> Eliminar</button>
         </div>
       </div>
 
@@ -380,44 +382,29 @@ function ProductDetail({ p: initialP, onBack, onStatusChange }: {
       )}
 
       {tab === "métricas" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <KpiCard label="CTR" value="2,59%" delta={9} trend={[1.8,1.9,2.1,2.3,2.2,2.5,2.6]} />
-            <KpiCard label="CPC" value={eur(0.42)} delta={-12} color="success" trend={[0.65,0.58,0.55,0.50,0.48,0.44,0.42]} />
-            <KpiCard label="CPM" value={eur(11.83)} delta={3} trend={[10,11,11.5,12,11.8,11.4,11.8]} />
-            <KpiCard label="Hook rate" value="45,6%" delta={5} trend={[38,40,42,44,43,45,46]} />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white border border-[var(--border)] rounded-xl p-4 shadow-sm">
-              <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-3">ROAS diario vs Break-even</div>
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={chartData}>
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--ink-4)" }} />
-                  <YAxis tick={{ fontSize: 10, fill: "var(--ink-4)" }} width={30} domain={[0, "auto"]} />
-                  <Tooltip contentStyle={{ background: "white", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
-                  <ReferenceLine y={p.breRoas} stroke="var(--danger)" strokeDasharray="4 2" label={{ value: "BE", fontSize: 10, fill: "var(--danger)" }} />
-                  <Line dataKey="roas" stroke="var(--info)" strokeWidth={2} dot={{ r: 3 }} name="ROAS" />
-                </LineChart>
-              </ResponsiveContainer>
+        hasMetrics ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <KpiCard label="Gasto"     value={eur(p.spend)} />
+              <KpiCard label="Ingresos"  value={eur(p.revenue)} />
+              <KpiCard label="ROAS"      value={p.roas ? `${p.roas.toFixed(2)}×` : "—"} color={p.roas >= p.breRoas ? "success" : "danger"} />
+              <KpiCard label="Ventas"    value={String(p.sales)} />
             </div>
-            <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
-              <div className="px-4 py-3 border-b border-[var(--border)] font-semibold text-[13px] text-[var(--ink-1)]">Tabla diaria</div>
-              <table className="w-full text-[12px]">
-                <thead><tr className="border-b border-[var(--border)] bg-[var(--bg-inset)]">{["Día","Gasto","Compras","ROAS"].map(h => <th key={h} className="text-left px-3 py-2 text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wide">{h}</th>)}</tr></thead>
-                <tbody>
-                  {DAYS.map((d, i) => (
-                    <tr key={d} className="border-b border-[var(--border-soft)] hover:bg-[var(--bg-inset)]">
-                      <td className="px-3 py-2.5 text-[var(--ink-2)]">{d}{i === 6 && <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--gold-soft)] text-[var(--gold-deep)] font-semibold">HOY</span>}</td>
-                      <td className="px-3 py-2.5 font-mono text-[var(--ink-1)]">{eur([78,82,80,95,88,102,98][i])}</td>
-                      <td className="px-3 py-2.5 font-mono text-[var(--ink-1)]">{[3,5,4,5,4,6,9][i]}</td>
-                      <td className={cx("px-3 py-2.5 font-mono font-semibold", TREND_ROAS[i] >= p.breRoas ? "text-[var(--success)]" : "text-[var(--danger)]")}>{TREND_ROAS[i].toFixed(2)}×</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="bg-[var(--bg-inset)] border border-dashed border-[var(--border-strong)] rounded-xl p-6 text-center text-[12px] text-[var(--ink-3)]">
+              <TrendingUp size={20} className="mx-auto mb-2 text-[var(--ink-4)]" />
+              <div className="text-[13px] text-[var(--ink-2)] font-medium mb-1">Métricas reales del producto</div>
+              <div>Las gráficas diarias detalladas se generarán cuando registres entradas diarias en el <strong className="text-[var(--ink-1)]">Dashboard</strong>. Conecta también tus campañas en la pestaña Campañas para enlazar el rendimiento.</div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm flex flex-col items-center justify-center py-14 gap-3">
+            <TrendingUp size={28} className="text-[var(--ink-4)]" />
+            <div className="text-[14px] font-semibold text-[var(--ink-1)]">Sin métricas todavía</div>
+            <div className="text-[12px] text-[var(--ink-4)] text-center max-w-md leading-relaxed">
+              Este producto aún no tiene gasto ni ventas registradas. Las métricas reales aparecerán automáticamente cuando empieces a registrar datos diarios en el Dashboard y conectes campañas.
+            </div>
+          </div>
+        )
       )}
 
       {tab === "creativos" && (
@@ -522,25 +509,6 @@ function ProductDetail({ p: initialP, onBack, onStatusChange }: {
             placeholder="Escribe aquí tus notas, observaciones y próximas acciones para este producto..."
           />
           <div className="text-[11px] text-[var(--ink-4)]">Las notas se guardan localmente en esta sesión.</div>
-        </div>
-      )}
-
-      {tab === "decisiones" && (
-        <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
-            <div className="font-semibold text-[13px] text-[var(--ink-1)]">Historial de decisiones</div>
-          </div>
-          <div className="divide-y divide-[var(--border-soft)]">
-            {DECISIONS_LOG.map((d, i) => (
-              <div key={i} className="flex items-start gap-3 px-4 py-3.5">
-                <div className="w-7 h-7 rounded-lg bg-[var(--bg-inset)] flex items-center justify-center flex-shrink-0 text-[var(--ink-3)] text-[11px]">⊙</div>
-                <div className="flex-1">
-                  <div className="text-[13px] font-medium text-[var(--ink-1)]">{d.action}</div>
-                  <div className="text-[11px] text-[var(--ink-3)] mt-0.5">{d.ts} · <code className="bg-[var(--bg-inset)] border border-[var(--border)] px-1 rounded text-[10px]">{d.who}</code></div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -713,7 +681,7 @@ function NewProductModal({ open, onClose, onAdd }: { open: boolean; onClose: () 
 }
 
 export function Products() {
-  const { success } = useToast();
+  const { success, warning } = useToast();
   const [products, setProducts] = useLocalStorage<Product[]>("ecc-products", []);
   const [view, setView] = useState<"cards" | "table">("cards");
   const [filter, setFilter] = useState("all");
@@ -724,6 +692,11 @@ export function Products() {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status, statusLabel: STATUS_BADGE[status].label } : p));
   };
 
+  const handleDelete = (id: string) => {
+    setProducts(prev => prev.filter(p => p.id !== id));
+    warning("Producto eliminado");
+  };
+
   const addProduct = (p: Product) => {
     setProducts(prev => [...prev, p]);
     success("Producto añadido", p.name);
@@ -732,7 +705,7 @@ export function Products() {
   const filtered = products.filter(p => filter === "all" || p.status === filter);
   const selected = products.find(p => p.id === selectedId);
 
-  if (selected) return <ProductDetail p={selected} onBack={() => setSelectedId(null)} onStatusChange={handleStatusChange} />;
+  if (selected) return <ProductDetail p={selected} onBack={() => setSelectedId(null)} onStatusChange={handleStatusChange} onDelete={handleDelete} />;
 
   if (products.length === 0) {
     return (

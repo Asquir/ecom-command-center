@@ -168,16 +168,16 @@ export const TREND_SPEND   = [78,  82,  80,  95,  88,  102, 98];
 export const TREND_ROAS    = [1.54,1.77,1.65,1.99,1.90,2.01,2.53];
 
 export const CHECKLIST_ITEMS = [
-  { id: "demo-visual",     label: "Producto con demo visual fuerte",    done: true  },
-  { id: "mobile-review",   label: "Página móvil revisada",              done: true  },
-  { id: "checkout-test",   label: "Checkout probado en móvil",          done: true  },
-  { id: "currency",        label: "Moneda correcta configurada",        done: true  },
-  { id: "shipping",        label: "Envío activo para país objetivo",    done: true  },
-  { id: "pixel",           label: "Pixel activo + CAPI",                done: true  },
-  { id: "events",          label: "Eventos probados (VC/ATC/IC/Purch)", done: true  },
-  { id: "creatives",       label: "3+ creativos preparados",            done: true  },
+  { id: "demo-visual",     label: "Producto con demo visual fuerte",    done: false },
+  { id: "mobile-review",   label: "Página móvil revisada",              done: false },
+  { id: "checkout-test",   label: "Checkout probado en móvil",          done: false },
+  { id: "currency",        label: "Moneda correcta configurada",        done: false },
+  { id: "shipping",        label: "Envío activo para país objetivo",    done: false },
+  { id: "pixel",           label: "Pixel activo + CAPI",                done: false },
+  { id: "events",          label: "Eventos probados (VC/ATC/IC/Purch)", done: false },
+  { id: "creatives",       label: "3+ creativos preparados",            done: false },
   { id: "be-calc",         label: "Break-even calculado",               done: false },
-  { id: "payment",         label: "Métodos de pago activos",            done: true  },
+  { id: "payment",         label: "Métodos de pago activos",            done: false },
   { id: "discounts",       label: "Descuentos funcionando",             done: false },
   { id: "bundles",         label: "Packs / bundles funcionando",        done: false },
 ];
@@ -483,22 +483,22 @@ export const FIXED_COSTS = [
 ];
 
 // ===================== PLANNER =====================
-export const PLANNER_DAYS = [
-  { day: 1, title: "Lanzamiento",        state: "done",  items: ["Lanzar 3 ángulos: Presión, Sarro, Pelo", "Definir KPI objetivo del día", "Verificar pixel en compra de prueba"] },
-  { day: 2, title: "Lectura de tráfico", state: "done",  items: ["Revisar CTR / CPC / CPM", "No tomar decisiones todavía", "Anotar primeras hipótesis"] },
-  { day: 3, title: "Decisión por reglas",state: "today", items: ["Pausar el peor si cumple regla", "Crear 2 variaciones del mejor ángulo", "Revisar checkout si hay ATC sin pagos"] },
-  { day: 4, title: "Hooks ganadores",    state: "next",  items: ["Testear 3 hooks del ángulo ganador", "Mantener creativo control activo"] },
-  { day: 5, title: "Lectura de ROAS",    state: "next",  items: ["Revisar ROAS últimas 72h", "Revisar carrito si ATC sin venta"] },
-  { day: 6, title: "Lote de creatividad",state: "next",  items: ["Nuevo lote de 4–6 creativos", "Plantear UGC con afiliada"] },
-  { day: 7, title: "Decisión final",     state: "next",  items: ["Escalar / Seguir testeando / Pausar / Cambiar oferta", "Documentar aprendizajes en Reporte semanal"] },
+export const PLANNER_TEMPLATE = [
+  { day: 1, title: "Lanzamiento",         items: ["Lanzar 3 ángulos creativos distintos", "Definir KPI objetivo del día", "Verificar pixel + CAPI con compra de prueba"] },
+  { day: 2, title: "Lectura de tráfico",  items: ["Revisar CTR / CPC / CPM", "No tomar decisiones todavía", "Anotar primeras hipótesis"] },
+  { day: 3, title: "Decisión por reglas", items: ["Pausar el peor si cumple regla kill", "Crear 2 variaciones del mejor ángulo", "Revisar checkout si hay ATC sin pagos"] },
+  { day: 4, title: "Hooks ganadores",     items: ["Testear 3 hooks del ángulo ganador", "Mantener creativo control activo"] },
+  { day: 5, title: "Lectura de ROAS",     items: ["Revisar ROAS últimas 72h", "Revisar carrito si ATC sin venta"] },
+  { day: 6, title: "Lote de creatividad", items: ["Nuevo lote de 4–6 creativos", "Plantear UGC con afiliada"] },
+  { day: 7, title: "Decisión final",      items: ["Escalar / Seguir testeando / Pausar / Cambiar oferta", "Documentar aprendizajes en Reporte semanal"] },
 ];
 
 export const DAILY_CHECKLIST = [
-  { id: "spend",    label: "Revisar gasto total",        done: true  },
-  { id: "ctr_cpc",  label: "Revisar CTR / CPC",          done: true  },
-  { id: "atc",      label: "Revisar Add to Cart",        done: true  },
-  { id: "checkout", label: "Revisar checkouts",          done: true  },
-  { id: "sales",    label: "Revisar compras",            done: true  },
+  { id: "spend",    label: "Revisar gasto total",        done: false },
+  { id: "ctr_cpc",  label: "Revisar CTR / CPC",          done: false },
+  { id: "atc",      label: "Revisar Add to Cart",        done: false },
+  { id: "checkout", label: "Revisar checkouts",          done: false },
+  { id: "sales",    label: "Revisar compras",            done: false },
   { id: "comments", label: "Comentarios en anuncios",   done: false },
   { id: "shopify",  label: "Revisar Shopify",            done: false },
   { id: "supplier", label: "Revisar proveedor",          done: false },

@@ -1,20 +1,55 @@
 "use client";
 import { useState } from "react";
 import { useLocalStorage } from "@/lib/hooks";
-import { PLANNER_DAYS, DAILY_CHECKLIST } from "@/lib/data";
-import { CheckCircle, Circle, Clock, ChevronRight, Zap, Calendar } from "lucide-react";
+import { useSettings } from "@/lib/settings-context";
+import { PLANNER_TEMPLATE, DAILY_CHECKLIST } from "@/lib/data";
+import { cx } from "@/lib/utils";
+import { CheckCircle, Circle, Clock, ChevronRight, Calendar, Play, RotateCcw } from "lucide-react";
 
 type CheckItem = { id: string; label: string; done: boolean };
 
+function dayDiff(fromISO: string): number {
+  const start = new Date(fromISO);
+  const today = new Date();
+  start.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((today.getTime() - start.getTime()) / 86400000);
+}
+
 export function Planner() {
+  const { settings } = useSettings();
+  const [startDate, setStartDate] = useLocalStorage<string | null>("ecc-planner-start", null);
+  const [completedDays, setCompletedDays] = useLocalStorage<number[]>("ecc-planner-completed", []);
   const [checks, setChecks] = useLocalStorage<CheckItem[]>("ecc-planner-checks", DAILY_CHECKLIST);
-  const [expandedDay, setExpandedDay] = useState<number | null>(3);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
 
   const toggle = (id: string) =>
     setChecks(prev => prev.map(c => c.id === id ? { ...c, done: !c.done } : c));
 
+  const toggleDayComplete = (day: number) =>
+    setCompletedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+
+  const reset = () => {
+    setStartDate(null);
+    setCompletedDays([]);
+    setChecks(prev => prev.map(c => ({ ...c, done: false })));
+    setExpandedDay(null);
+  };
+
+  const start = () => {
+    setStartDate(new Date().toISOString());
+    setExpandedDay(1);
+  };
+
+  const currentDay = startDate ? Math.min(7, dayDiff(startDate) + 1) : null;
   const doneCount = checks.filter(c => c.done).length;
   const totalCount = checks.length;
+
+  const dayState = (day: number): "done" | "today" | "next" => {
+    if (completedDays.includes(day)) return "done";
+    if (currentDay === day) return "today";
+    return "next";
+  };
 
   const dayStateColor = (state: string) => {
     if (state === "done")  return "border-[var(--success)] bg-[var(--success-soft)]";
@@ -32,64 +67,102 @@ export function Planner() {
     return "text-[var(--ink-4)]";
   };
 
-  return (
-    <div className="space-y-5">
-      <div className="flex items-end justify-between flex-wrap gap-3">
+  if (!startDate) {
+    return (
+      <div className="space-y-5">
         <div>
-          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Regadera Anti-Sarro · Semana 1</div>
-          <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Planner de testing</h1>
-          <p className="text-[13px] text-[var(--ink-3)] mt-1">7 días estructurados para validar un producto con criterios claros.</p>
+          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Testing plan</div>
+          <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Plan de testing 7 días</h1>
+          <p className="text-[13px] text-[var(--ink-3)] mt-1">Estructura tu testeo de producto con tareas diarias claras y árbol de decisión.</p>
         </div>
-        <div className="flex items-center gap-2 text-[13px] text-[var(--ink-3)]">
-          <Calendar size={14} />
-          <span>Día 3 de 7 · hoy</span>
+        <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--gold-soft)] flex items-center justify-center mx-auto mb-4">
+            <Calendar size={22} className="text-[var(--gold-deep)]" />
+          </div>
+          <h3 className="text-[16px] font-semibold text-[var(--ink-1)] mb-2">Aún no has empezado el plan</h3>
+          <p className="text-[13px] text-[var(--ink-3)] max-w-md mx-auto leading-relaxed mb-5">
+            Cuando arranques con un producto nuevo, pulsa "Iniciar plan" y la app te guiará durante los 7 primeros días de validación.
+            Cada día tendrás tareas específicas y un árbol de decisión para no quedarte bloqueado.
+          </p>
+          <button onClick={start}
+            className="px-5 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black transition-colors inline-flex items-center gap-2">
+            <Play size={14} /> Iniciar plan de testing
+          </button>
         </div>
-      </div>
-
-      {/* Progress strip */}
-      <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[12px] font-semibold text-[var(--ink-2)]">Progreso de la semana</span>
-          <span className="text-[12px] font-mono text-[var(--ink-3)]">Día 3 / 7</span>
-        </div>
-        <div className="flex gap-1.5">
-          {PLANNER_DAYS.map(d => (
-            <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
-              <div className={`h-2 w-full rounded-full ${d.state === "done" ? "bg-[var(--success)]" : d.state === "today" ? "bg-[var(--gold)]" : "bg-[var(--bg-inset)]"}`} />
-              <span className={`text-[10px] font-mono ${dayStateText(d.state)}`}>{d.day}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-7 gap-2">
+          {PLANNER_TEMPLATE.map(d => (
+            <div key={d.day} className="bg-white border border-[var(--border)] rounded-xl p-3 opacity-60">
+              <div className="text-[10px] font-mono text-[var(--ink-4)] mb-1">Día {d.day}</div>
+              <div className="text-[12px] font-semibold text-[var(--ink-1)]">{d.title}</div>
             </div>
           ))}
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">
+            {settings.productName ? `${settings.productName} · ` : ""}Semana 1
+          </div>
+          <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Planner de testing</h1>
+          <p className="text-[13px] text-[var(--ink-3)] mt-1">7 días estructurados para validar un producto con criterios claros.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-[13px] text-[var(--ink-3)]">
+            <Calendar size={14} />
+            <span>{currentDay && currentDay <= 7 ? `Día ${currentDay} de 7 · hoy` : "Plan completado"}</span>
+          </div>
+          <button onClick={reset}
+            title="Reiniciar plan"
+            className="text-[11px] px-2 py-1.5 rounded-lg border border-[var(--border)] text-[var(--ink-3)] hover:bg-[var(--bg-inset)] flex items-center gap-1">
+            <RotateCcw size={11} /> Reiniciar
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[12px] font-semibold text-[var(--ink-2)]">Progreso de la semana</span>
+          <span className="text-[12px] font-mono text-[var(--ink-3)]">{completedDays.length}/7</span>
+        </div>
+        <div className="flex gap-1.5">
+          {PLANNER_TEMPLATE.map(d => {
+            const st = dayState(d.day);
+            return (
+              <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
+                <div className={`h-2 w-full rounded-full ${st === "done" ? "bg-[var(--success)]" : st === "today" ? "bg-[var(--gold)]" : "bg-[var(--bg-inset)]"}`} />
+                <span className={`text-[10px] font-mono ${dayStateText(st)}`}>{d.day}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* 7-day calendar */}
         <div className="lg:col-span-2 space-y-2">
-          {PLANNER_DAYS.map(d => {
+          {PLANNER_TEMPLATE.map(d => {
+            const st = dayState(d.day);
             const isExpanded = expandedDay === d.day;
+            const isDone = completedDays.includes(d.day);
             return (
-              <div
-                key={d.day}
-                className={`border rounded-xl transition-all overflow-hidden ${dayStateColor(d.state)} ${d.state === "today" ? "shadow-sm" : ""}`}
-              >
+              <div key={d.day}
+                className={`border rounded-xl transition-all overflow-hidden ${dayStateColor(st)} ${st === "today" ? "shadow-sm" : ""}`}>
                 <button
                   className="w-full flex items-center gap-3 px-4 py-3 text-left"
                   onClick={() => setExpandedDay(isExpanded ? null : d.day)}
                 >
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[12px] text-white ${dayStateDot(d.state)}`}>
-                    {d.state === "done" ? "✓" : d.day}
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[12px] text-white ${dayStateDot(st)}`}>
+                    {isDone ? "✓" : d.day}
                   </div>
                   <div className="flex-1">
                     <div className="text-[13px] font-semibold text-[var(--ink-1)]">Día {d.day} — {d.title}</div>
-                    {d.state === "today" && (
-                      <div className="text-[11px] font-semibold text-[var(--gold-deep)] uppercase tracking-wide">Hoy</div>
-                    )}
-                    {d.state === "done" && (
-                      <div className="text-[11px] text-[var(--success)]">Completado</div>
-                    )}
-                    {d.state === "next" && (
-                      <div className="text-[11px] text-[var(--ink-4)]">{d.items.length} tareas pendientes</div>
-                    )}
+                    {st === "today" && <div className="text-[11px] font-semibold text-[var(--gold-deep)] uppercase tracking-wide">Hoy</div>}
+                    {isDone && <div className="text-[11px] text-[var(--success)]">Completado</div>}
+                    {st === "next" && !isDone && <div className="text-[11px] text-[var(--ink-4)]">{d.items.length} tareas pendientes</div>}
                   </div>
                   <ChevronRight size={14} className={`text-[var(--ink-4)] transition-transform ${isExpanded ? "rotate-90" : ""}`} />
                 </button>
@@ -98,17 +171,19 @@ export function Planner() {
                   <div className="px-4 pb-3 space-y-1.5 border-t border-[rgba(0,0,0,0.06)] pt-3">
                     {d.items.map((item, i) => (
                       <div key={i} className="flex items-start gap-2.5">
-                        <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${d.state === "done" ? "bg-[var(--success)]" : d.state === "today" ? "bg-[var(--gold)]" : "bg-[var(--ink-5)]"}`} />
+                        <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${st === "done" ? "bg-[var(--success)]" : st === "today" ? "bg-[var(--gold)]" : "bg-[var(--ink-5)]"}`} />
                         <span className="text-[12px] text-[var(--ink-2)] leading-relaxed">{item}</span>
                       </div>
                     ))}
-                    {d.state === "today" && (
-                      <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.06)]">
-                        <button className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white flex items-center gap-1.5">
-                          <Zap size={11} /> Ir al dashboard del día
-                        </button>
-                      </div>
-                    )}
+                    <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.06)] flex gap-2">
+                      <button onClick={() => toggleDayComplete(d.day)}
+                        className={cx("text-[12px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5",
+                          isDone
+                            ? "bg-[var(--bg-inset)] text-[var(--ink-3)] hover:bg-[var(--border)]"
+                            : "bg-[var(--success)] text-white hover:opacity-90")}>
+                        <CheckCircle size={12} /> {isDone ? "Marcar como pendiente" : "Marcar día completado"}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -116,7 +191,6 @@ export function Planner() {
           })}
         </div>
 
-        {/* Daily checklist */}
         <div className="space-y-4">
           <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm">
             <div className="p-4 border-b border-[var(--border)]">
@@ -125,19 +199,14 @@ export function Planner() {
                 <span className="text-[11px] font-mono text-[var(--ink-4)]">{doneCount}/{totalCount}</span>
               </div>
               <div className="mt-2 h-1.5 bg-[var(--bg-inset)] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[var(--success)] rounded-full transition-all"
-                  style={{ width: `${(doneCount / totalCount) * 100}%` }}
-                />
+                <div className="h-full bg-[var(--success)] rounded-full transition-all"
+                  style={{ width: `${totalCount > 0 ? (doneCount / totalCount) * 100 : 0}%` }} />
               </div>
             </div>
             <div className="p-2 space-y-0.5">
               {checks.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => toggle(item.id)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--bg-inset)] transition-colors text-left"
-                >
+                <button key={item.id} onClick={() => toggle(item.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--bg-inset)] transition-colors text-left">
                   {item.done
                     ? <CheckCircle size={15} className="text-[var(--success)] flex-shrink-0" />
                     : <Circle size={15} className="text-[var(--ink-5)] flex-shrink-0" />
@@ -150,9 +219,8 @@ export function Planner() {
             </div>
           </div>
 
-          {/* Decision framework */}
           <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm p-4">
-            <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-3">Árbol de decisión — Día 3</div>
+            <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-3">Árbol de decisión rápido</div>
             <div className="space-y-2 text-[12px] text-[var(--ink-2)]">
               {[
                 { q: "¿Hay ATC sin ventas?", a: "Revisar carrito y checkout" },
@@ -171,13 +239,14 @@ export function Planner() {
             </div>
           </div>
 
-          {/* Prime time alert */}
           <div className="bg-[var(--gold-soft)] border border-[rgba(200,169,106,0.3)] rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1.5">
               <Clock size={13} className="text-[var(--gold-deep)]" />
-              <div className="text-[12px] font-semibold text-[var(--gold-deep)]">Prime time MX esta noche</div>
+              <div className="text-[12px] font-semibold text-[var(--gold-deep)]">Recuerda el prime time</div>
             </div>
-            <div className="text-[11px] text-[var(--ink-3)]">20:00–23:00 hora MX. Las métricas de conversión mejoran hasta un 40% en esa ventana. No apagues antes.</div>
+            <div className="text-[11px] text-[var(--ink-3)]">
+              La mayoría de mercados tienen una ventana nocturna (20–23h hora local) donde la conversión sube. No apagues antes.
+            </div>
           </div>
         </div>
       </div>

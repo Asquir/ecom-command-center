@@ -3,7 +3,7 @@ import { useState } from "react";
 import { eur } from "@/lib/utils";
 import { useSettings, DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings-context";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle, Settings2, Globe, Target, Zap, Link } from "lucide-react";
+import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle } from "lucide-react";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -160,7 +160,7 @@ export function Settings() {
         ))}
       </Section>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <button onClick={handleSave}
           className="px-5 py-2.5 rounded-lg bg-[var(--ink-1)] text-white text-[13px] font-medium hover:bg-black transition-colors flex items-center gap-2">
           {saved ? <CheckCircle size={13} /> : <Settings2 size={13} />}
@@ -168,9 +168,43 @@ export function Settings() {
         </button>
         <button onClick={() => { setSettings(DEFAULT_SETTINGS); success("Ajustes restablecidos", "Valores por defecto restaurados."); }}
           className="px-4 py-2.5 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[13px] hover:bg-[var(--bg-inset)] transition-colors">
-          Restablecer
+          Restablecer ajustes
         </button>
         {saved && <span className="text-[12px] text-[var(--success)] flex items-center gap-1.5"><CheckCircle size={12} /> Dashboard y Calculadora actualizados</span>}
+      </div>
+
+      {/* Danger zone */}
+      <div className="bg-[var(--danger-soft)] border border-[rgba(239,68,68,0.2)] rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2.5 p-4 border-b border-[rgba(239,68,68,0.15)]">
+          <div className="w-7 h-7 rounded-lg bg-[var(--danger)] flex items-center justify-center text-white">
+            <AlertTriangle size={14} />
+          </div>
+          <div className="text-[13px] font-semibold text-[var(--danger)]">Zona peligrosa</div>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="text-[12px] text-[var(--ink-3)] leading-relaxed">
+            Estas acciones borran datos permanentemente y no se pueden deshacer. Úsalas solo si quieres empezar de cero o eliminar datos de prueba.
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => {
+              if (!confirm("¿Borrar TODOS los datos de la app (productos, campañas, creativos, pedidos, métricas, autopsias, planner...)? El onboarding y los ajustes se mantienen.")) return;
+              const keysToKeep = ["ecc-settings", "ecc-section", "ecc-dark"];
+              const allKeys = Object.keys(localStorage).filter(k => k.startsWith("ecc-") && !keysToKeep.includes(k));
+              allKeys.forEach(k => localStorage.removeItem(k));
+              success("Datos borrados", `${allKeys.length} claves eliminadas. Recarga la página.`);
+              setTimeout(() => window.location.reload(), 1000);
+            }} className="px-4 py-2.5 rounded-lg bg-white border border-[rgba(239,68,68,0.3)] text-[var(--danger)] text-[12px] font-semibold hover:bg-[var(--danger-soft)] flex items-center gap-2">
+              <Trash2 size={13} /> Borrar todos los datos de la app
+            </button>
+            <button onClick={() => {
+              if (!confirm("¿Reset completo? Esto borra TODO incluyendo onboarding y ajustes. La app volverá a la pantalla inicial.")) return;
+              Object.keys(localStorage).filter(k => k.startsWith("ecc-")).forEach(k => localStorage.removeItem(k));
+              setTimeout(() => window.location.reload(), 500);
+            }} className="px-4 py-2.5 rounded-lg bg-[var(--danger)] text-white text-[12px] font-semibold hover:opacity-90 flex items-center gap-2">
+              <Trash2 size={13} /> Reset completo (incluye onboarding)
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useLocalStorage } from "@/lib/hooks";
 import { useSettings } from "@/lib/settings-context";
 import { Onboarding } from "@/components/onboarding";
 import { Sidebar, type Section } from "@/components/sidebar";
+import { SectionHint } from "@/components/section-hint";
 import { Dashboard } from "@/components/sections/dashboard";
 import { Calculator } from "@/components/sections/calculator";
 import { Creatives } from "@/components/sections/creatives";
@@ -166,7 +167,8 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="flex-1 p-6 max-w-[1440px] w-full mx-auto">
+        <main className="flex-1 p-6 max-w-[1440px] w-full mx-auto space-y-4">
+          <SectionHint section={section} />
           {sectionBody[section]}
         </main>
       </div>
