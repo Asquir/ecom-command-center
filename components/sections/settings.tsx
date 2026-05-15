@@ -3,7 +3,8 @@ import { useState } from "react";
 import { eur } from "@/lib/utils";
 import { useSettings, DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings-context";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User } from "lucide-react";
+import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload } from "lucide-react";
+import { exportBackup, importBackup } from "@/lib/data-io";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -183,6 +184,48 @@ export function Settings() {
           Restablecer ajustes
         </button>
         {saved && <span className="text-[12px] text-[var(--success)] flex items-center gap-1.5"><CheckCircle size={12} /> Dashboard y Calculadora actualizados</span>}
+      </div>
+
+      {/* Datos — Export/Import */}
+      <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
+        <div className="flex items-center gap-2.5 p-4 border-b border-[var(--border)]">
+          <div className="w-7 h-7 rounded-lg bg-[var(--bg-inset)] flex items-center justify-center text-[var(--ink-3)]">
+            <Download size={14} />
+          </div>
+          <div className="text-[13px] font-semibold text-[var(--ink-1)]">Datos · Backup y restauración</div>
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="text-[12px] text-[var(--ink-3)] leading-relaxed">
+            Exporta todos tus datos (métricas, campañas, productos, gastos) como JSON para guardar un backup o moverlos a otro dispositivo.
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => { exportBackup(); success("Backup exportado", "Archivo JSON descargado."); }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black transition-colors"
+            >
+              <Download size={13} /> Exportar backup (JSON)
+            </button>
+            <label className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-2)] text-[12px] font-semibold hover:bg-[var(--bg-inset)] cursor-pointer transition-colors">
+              <Upload size={13} /> Importar backup
+              <input type="file" accept=".json" className="hidden" onChange={e => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                  const result = importBackup(ev.target?.result as string);
+                  if (result.error) {
+                    success("Error", result.error);
+                  } else {
+                    success("Backup importado", `${result.imported} claves restauradas. Recarga la página.`);
+                    setTimeout(() => window.location.reload(), 1500);
+                  }
+                };
+                reader.readAsText(file);
+                e.target.value = "";
+              }} />
+            </label>
+          </div>
+        </div>
       </div>
 
       {/* Danger zone */}

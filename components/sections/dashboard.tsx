@@ -288,6 +288,16 @@ export function Dashboard() {
   const checkoutRate = m.atc > 0 ? (m.checkouts / m.atc) * 100 : 0;
   const purchaseRate = m.checkouts > 0 ? (m.purchases / m.checkouts) * 100 : 0;
 
+  // Yesterday comparison
+  const sortedKeys = Object.keys(allMetrics).sort();
+  const yesterdayKey = sortedKeys.filter(k => k < today).slice(-1)[0];
+  const yd = yesterdayKey ? allMetrics[yesterdayKey] : null;
+  const ydRoas = yd && yd.spend > 0 ? yd.revenue / yd.spend : null;
+  const ydCpa = yd && yd.purchases > 0 ? yd.spend / yd.purchases : null;
+  const pctDelta = (curr: number, prev: number | null) => prev && prev > 0 ? ((curr - prev) / prev) * 100 : null;
+  const roasDelta = pctDelta(roas, ydRoas);
+  const cpaDelta = pctDelta(cpa, ydCpa);
+
   const aiAnalysis = analyzeMetrics(allMetrics, settings.beCpa, settings.beRoas, settings.ctrTarget);
 
   const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -333,21 +343,52 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Alert banner for critical thresholds */}
+      {(settings.beRoas > 0 && roas > 0 && roas < settings.beRoas * 0.8) && (
+        <div className="bg-[var(--danger-soft)] border border-[rgba(239,68,68,0.25)] rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle size={15} className="text-[var(--danger)] flex-shrink-0 mt-0.5" />
+          <div>
+            <div className="text-[13px] font-bold text-[var(--danger)] mb-0.5">ROAS por debajo del break-even</div>
+            <div className="text-[12px] text-[var(--ink-2)]">
+              ROAS actual {roas.toFixed(2)}× vs BE {settings.beRoas}×. No escales hasta resolver el creativo o el precio.
+            </div>
+          </div>
+        </div>
+      )}
+      {(settings.beCpa > 0 && cpa > 0 && cpa > settings.beCpa * 1.5) && (
+        <div className="bg-[var(--warning-soft)] border border-[rgba(245,158,11,0.25)] rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle size={15} className="text-[var(--warning)] flex-shrink-0 mt-0.5" />
+          <div>
+            <div className="text-[13px] font-bold text-[var(--warning)] mb-0.5">CPA por encima del límite</div>
+            <div className="text-[12px] text-[var(--ink-2)]">
+              CPA {eur(cpa)} · BE máx {eur(settings.beCpa)}. Cada venta genera pérdida. Revisa el funnel antes de seguir.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* AI Analysis Panel */}
       <AIPanel analysis={aiAnalysis} />
 
       {/* Main KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Ingresos", value: eur(m.revenue), sub: `${m.purchases} pedidos`, ok: m.revenue > m.spend },
-          { label: "Gasto en ads", value: eur(m.spend), sub: `CPM ${eur(cpm)}`, ok: null },
-          { label: "ROAS", value: `${roas.toFixed(2)}×`, sub: `BE: ${settings.beRoas > 0 ? settings.beRoas + "×" : "—"}`, ok: settings.beRoas > 0 ? roas >= settings.beRoas : null },
-          { label: "CPA", value: cpa > 0 ? eur(cpa) : "—", sub: `BE: ${settings.beCpa > 0 ? eur(settings.beCpa) : "—"}`, ok: cpa > 0 && settings.beCpa > 0 ? cpa <= settings.beCpa : null },
+          { label: "Ingresos", value: eur(m.revenue), sub: `${m.purchases} pedidos`, delta: null, ok: m.revenue > m.spend },
+          { label: "Gasto en ads", value: eur(m.spend), sub: `CPM ${eur(cpm)}`, delta: null, ok: null },
+          { label: "ROAS", value: `${roas.toFixed(2)}×`, sub: `BE: ${settings.beRoas > 0 ? settings.beRoas + "×" : "—"}`, delta: roasDelta, ok: settings.beRoas > 0 ? roas >= settings.beRoas : null },
+          { label: "CPA", value: cpa > 0 ? eur(cpa) : "—", sub: `BE: ${settings.beCpa > 0 ? eur(settings.beCpa) : "—"}`, delta: cpa > 0 ? cpaDelta : null, ok: cpa > 0 && settings.beCpa > 0 ? cpa <= settings.beCpa : null },
         ].map(k => (
           <div key={k.label} className="bg-white border border-[var(--border)] rounded-xl p-4 shadow-sm">
             <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-2">{k.label}</div>
             <div className={`font-mono font-bold text-[22px] ${k.ok === true ? "text-[var(--success)]" : k.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>{k.value}</div>
-            <div className="text-[11px] text-[var(--ink-4)] mt-1">{k.sub}</div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[11px] text-[var(--ink-4)]">{k.sub}</span>
+              {k.delta !== null && (
+                <span className={`text-[10px] font-bold ${k.delta > 0 ? "text-[var(--success)]" : k.delta < 0 ? "text-[var(--danger)]" : "text-[var(--ink-4)]"}`}>
+                  {k.delta > 0 ? "+" : ""}{k.delta.toFixed(0)}% vs ayer
+                </span>
+              )}
+            </div>
           </div>
         ))}
       </div>

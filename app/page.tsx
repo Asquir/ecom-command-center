@@ -6,6 +6,7 @@ import { Onboarding } from "@/components/onboarding";
 import { Sidebar, type Section } from "@/components/sidebar";
 import { SectionHint } from "@/components/section-hint";
 import { CommandPalette } from "@/components/command-palette";
+import { QuickActionsPanel } from "@/components/quick-actions-panel";
 import { Dashboard } from "@/components/sections/dashboard";
 import { Calculator } from "@/components/sections/calculator";
 import { Creatives } from "@/components/sections/creatives";
@@ -20,7 +21,7 @@ import { Reports } from "@/components/sections/reports";
 import { Settings } from "@/components/sections/settings";
 import { CashFlow } from "@/components/sections/cashflow";
 import { Lab } from "@/components/sections/lab";
-import { Bell, Moon, Sun, Plus, X, Command } from "lucide-react";
+import { Bell, Moon, Sun, Plus, X, Command, Menu } from "lucide-react";
 
 const SECTION_LABELS: Record<Section, string> = {
   dashboard:  "Dashboard · IA",
@@ -42,9 +43,9 @@ const SECTION_LABELS: Record<Section, string> = {
 function LoadingSkeleton() {
   return (
     <div className="flex min-h-screen bg-[var(--bg)]">
-      <div className="w-[216px] flex-shrink-0 border-r border-[var(--border)] bg-[var(--sidebar)]" />
+      <div className="hidden lg:block w-[216px] flex-shrink-0 border-r border-[var(--border)] bg-[var(--sidebar)]" />
       <div className="flex-1 flex flex-col">
-        <div className="h-[58px] border-b border-[var(--border)] bg-[var(--bg)]" />
+        <div className="h-[54px] border-b border-[var(--border)] bg-[var(--bg)]" />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-7 h-7 rounded-full border-2 border-[var(--gold)] border-t-transparent animate-spin" />
@@ -62,6 +63,7 @@ export default function Home() {
   const [dark, setDark] = useLocalStorage<boolean>("ecc-dark", false);
   const [mounted, setMounted] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
 
@@ -95,7 +97,7 @@ export default function Home() {
   if (!mounted) return <LoadingSkeleton />;
   if (!settings.onboarded) return <Onboarding />;
 
-  const navigate = (s: Section) => { setSection(s); };
+  const navigate = (s: Section) => { setSection(s); setSidebarOpen(false); };
 
   const sectionBody: Record<Section, React.ReactNode> = {
     dashboard:  <Dashboard />,
@@ -119,25 +121,39 @@ export default function Home() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onNavigate={navigate} />
 
       <div className="flex min-h-screen bg-[var(--bg)]">
-        <Sidebar active={section} onNavigate={navigate} onOpenPalette={() => setPaletteOpen(true)} />
+        <Sidebar
+          active={section}
+          onNavigate={navigate}
+          onOpenPalette={() => setPaletteOpen(true)}
+          mobile={sidebarOpen}
+          onMobileClose={() => setSidebarOpen(false)}
+        />
 
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <header className="h-[54px] border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-20 flex items-center gap-4 px-5">
+          <header className="h-[54px] border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-20 flex items-center gap-3 px-4 sm:px-5">
+            {/* Mobile hamburger */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)] transition-colors flex-shrink-0"
+            >
+              <Menu size={15} className="text-[var(--ink-3)]" />
+            </button>
+
             {/* Breadcrumb */}
-            <div className="flex items-center gap-2 text-[13px] min-w-0">
+            <div className="flex items-center gap-2 text-[13px] min-w-0 flex-1">
               <span className="text-[var(--ink-4)] hidden sm:block font-medium text-[12px] truncate">
                 {settings.storeName || "Ecom Command Center"}
               </span>
               <span className="text-[var(--ink-5)] hidden sm:block">/</span>
-              <strong className="text-[var(--ink-1)] font-semibold truncate">{SECTION_LABELS[section]}</strong>
+              <strong className="text-[var(--ink-1)] font-semibold truncate text-[13px]">{SECTION_LABELS[section]}</strong>
             </div>
 
-            <div className="ml-auto flex items-center gap-1.5">
-              {/* Command palette trigger */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Command palette trigger - hidden on small mobile */}
               <button
                 onClick={() => setPaletteOpen(true)}
-                className="hidden sm:flex items-center gap-2 h-8 px-3 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)] text-[var(--ink-4)] text-[12px] transition-colors"
+                className="hidden md:flex items-center gap-2 h-8 px-3 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)] text-[var(--ink-4)] text-[12px] transition-colors"
               >
                 <Command size={12} />
                 <span>Buscar</span>
@@ -171,21 +187,24 @@ export default function Home() {
                 {dark ? <Sun size={13} className="text-[var(--gold)]" /> : <Moon size={13} className="text-[var(--ink-3)]" />}
               </button>
 
-              {/* New campaign CTA */}
+              {/* New CTA */}
               <button onClick={() => navigate("campaigns")}
                 className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black transition-colors shadow-sm">
-                <Plus size={13} /> Nueva
+                <Plus size={13} /> <span className="hidden sm:inline">Nueva</span>
               </button>
             </div>
           </header>
 
           {/* Main content */}
-          <main className="flex-1 p-5 sm:p-6 max-w-[1440px] w-full mx-auto space-y-4">
+          <main className="flex-1 p-4 sm:p-5 lg:p-6 max-w-[1440px] w-full mx-auto space-y-4">
             <SectionHint section={section} />
             {sectionBody[section]}
           </main>
         </div>
       </div>
+
+      {/* Quick actions floating panel */}
+      <QuickActionsPanel onNavigate={navigate} />
     </>
   );
 }
