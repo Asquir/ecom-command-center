@@ -11,6 +11,13 @@ import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
 import { Copy, Pause, Play, Zap, SortAsc, Plus, X, CheckCircle, AlertTriangle, Flame, Trash2 } from "lucide-react";
 
+function letterGrade(score: number): { grade: "A" | "B" | "C" | "D"; color: string; bg: string } {
+  if (score >= 80) return { grade: "A", color: "text-[var(--success)]", bg: "bg-[var(--success-soft)]" };
+  if (score >= 65) return { grade: "B", color: "text-[var(--warning)]", bg: "bg-[var(--warning-soft)]" };
+  if (score >= 40) return { grade: "C", color: "text-[var(--info)]",    bg: "bg-[var(--info-soft)]" };
+  return             { grade: "D", color: "text-[var(--danger)]",  bg: "bg-[var(--danger-soft)]" };
+}
+
 const TONE_BG: Record<string, [string, string]> = {
   neutral: ["#1a1a1a", "#3a3a3a"],
   gold:    ["#5a4827", "#c8a96a"],
@@ -61,6 +68,7 @@ function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariat
         <CreativeThumb label={c.angle} tone={c.tone} size="card" />
         <div className="absolute top-2.5 left-2.5 flex gap-1.5 flex-wrap">
           <DecisionBadge kind={c.decision} />
+          {(() => { const g = letterGrade(c.score); return <span className={cx("text-[10px] font-black px-1.5 py-0.5 rounded-md shadow-sm bg-white/90", g.color)}>{g.grade}</span>; })()}
           {isPaused && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-black/60 text-white">PAUSADO</span>}
         </div>
         <div className="absolute top-2.5 right-2.5">
@@ -136,6 +144,7 @@ export function Creatives() {
   const [filterAngle, setFilterAngle] = useState<string>("all");
   const [variationModal, setVariationModal] = useState<CreativeState | null>(null);
   const [addModal, setAddModal] = useState(false);
+  const [view, setView] = useState<"cards" | "ranking">("cards");
   const [newHook, setNewHook] = useState("");
   const [newAngle, setNewAngle] = useState("");
   const [newVoice, setNewVoice] = useState("Chica");
@@ -340,31 +349,90 @@ export function Creatives() {
             {a === "all" ? "Todos" : a}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-1.5 text-[12px] text-[var(--ink-3)]">
-          <SortAsc size={13} />
-          <span>Ordenar por</span>
-          {(["score", "ctr", "spend"] as const).map(s => (
-            <button key={s} onClick={() => setSortBy(s)}
-              className={cx("px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors",
-                sortBy === s ? "bg-[var(--ink-1)] text-white border-[var(--ink-1)]" : "bg-white border-[var(--border)] text-[var(--ink-2)] hover:bg-[var(--bg-inset)]")}>
-              {s === "score" ? "Score" : s === "ctr" ? "CTR" : "Gasto"}
-            </button>
-          ))}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+            <button onClick={() => setView("cards")} className={cx("px-3 py-1.5 text-[11px] font-medium transition-colors", view === "cards" ? "bg-[var(--ink-1)] text-white" : "bg-white text-[var(--ink-3)] hover:bg-[var(--bg-inset)]")}>Tarjetas</button>
+            <button onClick={() => setView("ranking")} className={cx("px-3 py-1.5 text-[11px] font-medium transition-colors border-l border-[var(--border)]", view === "ranking" ? "bg-[var(--ink-1)] text-white" : "bg-white text-[var(--ink-3)] hover:bg-[var(--bg-inset)]")}>Ranking</button>
+          </div>
+          {view === "cards" && (
+            <div className="flex items-center gap-1.5 text-[12px] text-[var(--ink-3)]">
+              <SortAsc size={13} />
+              {(["score", "ctr", "spend"] as const).map(s => (
+                <button key={s} onClick={() => setSortBy(s)}
+                  className={cx("px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors",
+                    sortBy === s ? "bg-[var(--ink-1)] text-white border-[var(--ink-1)]" : "bg-white border-[var(--border)] text-[var(--ink-2)] hover:bg-[var(--bg-inset)]")}>
+                  {s === "score" ? "Score" : s === "ctr" ? "CTR" : "Gasto"}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sorted.map(c => (
-          <CreativeCard key={c.id} c={c}
-            ctrTarget={ctrTarget}
-            hookTarget={hookTarget}
-            onPause={() => handlePause(c.id)}
-            onDuplicate={() => handleDuplicate(c)}
-            onVariation={() => { setVariationModal(c); setNewAngle(c.angle); }}
-            onDelete={() => handleDelete(c)}
-          />
-        ))}
-      </div>
+      {view === "ranking" ? (
+        <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[var(--border)] bg-[var(--bg-inset)]">
+                {["#", "Nota", "Creativo", "Score", "CTR", "Hook", "Gasto", "Comp.", "Decisión"].map(h => (
+                  <th key={h} className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2.5 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border)]">
+              {[...creatives]
+                .filter(c => filterAngle === "all" || c.angle === filterAngle)
+                .sort((a, b) => b.score - a.score)
+                .map((c, i) => {
+                  const g = letterGrade(c.score);
+                  return (
+                    <tr key={c.id} className="hover:bg-[var(--bg-inset)] transition-colors">
+                      <td className="px-4 py-3 font-mono text-[12px] text-[var(--ink-4)] font-bold">#{i + 1}</td>
+                      <td className="px-4 py-3">
+                        <span className={cx("text-[13px] font-black px-2 py-0.5 rounded-md", g.bg, g.color)}>{g.grade}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <CreativeThumb label={c.angle} tone={c.tone} size="sm" />
+                          <div>
+                            <div className="text-[12px] font-semibold text-[var(--ink-1)] max-w-[160px] truncate">{c.name}</div>
+                            <div className="text-[10px] text-[var(--ink-4)] max-w-[160px] truncate">&ldquo;{c.hook}&rdquo;</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-mono font-bold text-[13px] text-[var(--ink-1)]">{c.score}</div>
+                        <div className="h-1 bg-[var(--bg-inset)] rounded-full mt-1 w-14">
+                          <div className={cx("h-full rounded-full", c.score >= 80 ? "bg-[var(--success)]" : c.score >= 65 ? "bg-[var(--warning)]" : c.score >= 40 ? "bg-[var(--info)]" : "bg-[var(--danger)]")}
+                            style={{ width: `${c.score}%` }} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{pct(c.ctr)}</td>
+                      <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{pct(c.hookRate, 0)}</td>
+                      <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{eur(c.spend, 0)}</td>
+                      <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{c.purchases}</td>
+                      <td className="px-4 py-3"><DecisionBadge kind={c.decision} /></td>
+                    </tr>
+                  );
+                })
+              }
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sorted.map(c => (
+            <CreativeCard key={c.id} c={c}
+              ctrTarget={ctrTarget}
+              hookTarget={hookTarget}
+              onPause={() => handlePause(c.id)}
+              onDuplicate={() => handleDuplicate(c)}
+              onVariation={() => { setVariationModal(c); setNewAngle(c.angle); }}
+              onDelete={() => handleDelete(c)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Variation modal */}
       <Modal open={!!variationModal} onClose={() => setVariationModal(null)} title={`Nueva variación de "${variationModal?.name}"`}>

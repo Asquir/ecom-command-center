@@ -22,6 +22,7 @@ import { Settings } from "@/components/sections/settings";
 import { CashFlow } from "@/components/sections/cashflow";
 import { Lab } from "@/components/sections/lab";
 import { Bell, Moon, Sun, Plus, X, Command, Menu } from "lucide-react";
+import { SetupProgress } from "@/components/setup-progress";
 
 const SECTION_LABELS: Record<Section, string> = {
   dashboard:  "Dashboard · IA",
@@ -198,6 +199,7 @@ export default function Home() {
           {/* Main content */}
           <main className="flex-1 p-4 sm:p-5 lg:p-6 max-w-[1440px] w-full mx-auto space-y-4">
             <SectionHint section={section} />
+            {section === "dashboard" && <SetupProgress onNavigate={navigate} />}
             {sectionBody[section]}
           </main>
         </div>

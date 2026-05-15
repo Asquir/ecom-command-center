@@ -8,7 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
-import { TrendingUp, TrendingDown, Eye, X, ChevronRight, Zap, Download, Plus, CheckCircle, Trash2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Eye, X, ChevronRight, ChevronsUpDown, Zap, Download, Plus, CheckCircle, Trash2 } from "lucide-react";
 
 function semaphoreColor(d: DecisionKind) {
   if (d === "scale") return "bg-[var(--success)]";
@@ -211,6 +211,8 @@ export function Campaigns() {
   const [newName, setNewName] = useState("");
   const [newBudget, setNewBudget] = useState("");
   const [scaleProtocol, setScaleProtocol] = useState<CampaignState | null>(null);
+  const [sortField, setSortField] = useState<"roas" | "spend" | "cpa" | "ctr" | "purchases">("roas");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const beRoas = settings.beRoas || 0;
 
@@ -223,6 +225,17 @@ export function Campaigns() {
   ];
 
   const visible = filter === "all" ? campaigns : campaigns.filter(c => c.decision === filter);
+
+  const toggleSort = (field: "roas" | "spend" | "cpa" | "ctr" | "purchases") => {
+    if (sortField === field) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
+  const sortedVisible = [...visible].sort((a, b) => {
+    const dir = sortDir === "desc" ? -1 : 1;
+    return (a[sortField] - b[sortField]) * dir;
+  });
+
   const selected = campaigns.find(c => c.id === selectedId);
 
   const doScale = (id: string) => {
@@ -360,7 +373,7 @@ export function Campaigns() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Campañas activas", value: String(activeCamps), sub: `${campaigns.length} total` },
           { label: "Gasto total",      value: eur(totalSpend),     sub: "todas las campañas" },
@@ -385,18 +398,91 @@ export function Campaigns() {
         ))}
       </div>
 
-      <div className="flex gap-4 items-start">
+      {/* Mobile: campaign cards */}
+      <div className="lg:hidden space-y-3">
+        {sortedVisible.map(c => {
+          const isSelected = c.id === selectedId;
+          return (
+            <div key={c.id} className={cx("bg-white border rounded-xl shadow-sm overflow-hidden transition-all", isSelected ? "border-[var(--gold)]" : "border-[var(--border)]")}>
+              <button onClick={() => setSelectedId(isSelected ? null : c.id)} className="w-full text-left p-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${semaphoreColor(c.decision)}`} />
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-semibold text-[var(--ink-1)] truncate">{c.name}</div>
+                      <div className="text-[11px] text-[var(--ink-4)]">{c.country} · {c.status} · {eur(c.budget)}/d</div>
+                    </div>
+                  </div>
+                  <DecisionBadge kind={c.decision} />
+                </div>
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {([
+                    { label: "ROAS", value: `${c.roas.toFixed(2)}×`, ok: beRoas > 0 ? c.roas >= beRoas : undefined },
+                    { label: "CPA",  value: eur(c.cpa) },
+                    { label: "CTR",  value: pct(c.ctr) },
+                    { label: "Gasto",value: eur(c.spend) },
+                  ] as { label: string; value: string; ok?: boolean }[]).map(m => (
+                    <div key={m.label}>
+                      <div className="text-[9px] font-semibold text-[var(--ink-4)] uppercase tracking-wide mb-0.5">{m.label}</div>
+                      <div className={cx("font-mono font-bold text-[12px]", m.ok === true ? "text-[var(--success)]" : m.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]")}>{m.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <RoasBar value={c.roas} be={beRoas || 2.3} />
+              </button>
+              {isSelected && (
+                <div className="border-t border-[var(--border)] p-4 bg-[var(--bg-inset)] space-y-3">
+                  <div className="text-[12px] text-[var(--ink-2)] bg-white border border-[var(--border)] rounded-lg p-3 leading-relaxed">{c.diag}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {c.decision === "scale" && (
+                      <button onClick={() => openScaleProtocol(c)}
+                        className="flex-1 min-w-[140px] text-[12px] font-medium py-2 rounded-lg bg-[var(--success)] text-white flex items-center justify-center gap-1.5">
+                        <TrendingUp size={12} /> Protocolo escala
+                      </button>
+                    )}
+                    {(c.decision === "kill" || c.status === "Activa") && (
+                      <button onClick={() => pause(c.id)}
+                        className="flex-1 min-w-[120px] text-[12px] font-medium py-2 rounded-lg bg-[var(--danger)] text-white flex items-center justify-center gap-1.5">
+                        <TrendingDown size={12} /> Pausar
+                      </button>
+                    )}
+                    <button onClick={() => deleteCampaign(c.id)}
+                      className="text-[12px] font-medium py-2 px-3 rounded-lg border border-[var(--border)] text-[var(--danger)] flex items-center gap-1.5">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: table + side panel */}
+      <div className="hidden lg:flex gap-4 items-start">
         <div className="flex-1 min-w-0 bg-white border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--bg-inset)]">
-                {["", "Campaña", "Tipo", "Presup.", "Gasto", "ROAS", "CPA", "CTR", "Compras", "Decisión", ""].map((h, i) => (
-                  <th key={i} className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2.5">{h}</th>
+                <th className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2.5" />
+                <th className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2.5">Campaña</th>
+                <th className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2.5">Tipo</th>
+                <th className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2.5">Presup.</th>
+                {(["spend", "roas", "cpa", "ctr", "purchases"] as const).map(field => (
+                  <th key={field} onClick={() => toggleSort(field)}
+                    className="text-left text-[10px] font-semibold uppercase tracking-wider px-4 py-2.5 cursor-pointer select-none hover:text-[var(--ink-2)] text-[var(--ink-4)]">
+                    <div className="flex items-center gap-1">
+                      {field === "spend" ? "Gasto" : field === "roas" ? "ROAS" : field === "cpa" ? "CPA" : field === "ctr" ? "CTR" : "Compras"}
+                      <ChevronsUpDown size={9} className={sortField === field ? "text-[var(--gold-deep)]" : "opacity-30"} />
+                    </div>
+                  </th>
                 ))}
+                <th className="text-left text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider px-4 py-2.5">Decisión</th>
+                <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {visible.map(c => {
+              {sortedVisible.map(c => {
                 const isSelected = c.id === selectedId;
                 return (
                   <tr key={c.id} onClick={() => setSelectedId(isSelected ? null : c.id)}
