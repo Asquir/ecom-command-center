@@ -17,6 +17,8 @@
   --gold-soft: #F5EFE0;
   --gold-deep: #A8884A;
 
+  --ink-5: #BEBEB5;
+
   --success: #16A34A;
   --success-soft: #E7F6EC;
   --warning: #F59E0B;
@@ -37,6 +39,7 @@
 
 body {
   background: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='0.75' fill='%23111' fill-opacity='0.035'/%3E%3C/svg%3E");
   color: var(--ink-1);
   font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
@@ -51,7 +54,7 @@ body {
 /* ── Dark mode ─────────────────────────────────────────────────── */
 html[data-theme="dark"] {
   --bg: #0F0F0D;
-  --bg-elev: #18181500;
+  --bg-elev: #181815;
   --bg-inset: #222220;
   --sidebar: #131311;
   --border: #2C2C28;
@@ -79,6 +82,7 @@ html[data-theme="dark"] {
 
 html[data-theme="dark"] body {
   background: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='0.75' fill='%23fff' fill-opacity='0.025'/%3E%3C/svg%3E");
   color: var(--ink-1);
 }
 

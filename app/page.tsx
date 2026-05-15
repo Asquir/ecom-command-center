@@ -44,7 +44,7 @@ const SECTION_LABELS: Record<Section, string> = {
 function LoadingSkeleton() {
   return (
     <div className="flex min-h-screen bg-[var(--bg)]">
-      <div className="hidden lg:block w-[216px] flex-shrink-0 border-r border-[var(--border)] bg-[var(--sidebar)]" />
+      <div className="hidden lg:block w-[216px] flex-shrink-0 border-r border-[rgba(255,255,255,0.06)] bg-[#0C0C0A]" />
       <div className="flex-1 flex flex-col">
         <div className="h-[54px] border-b border-[var(--border)] bg-[var(--bg)]" />
         <div className="flex-1 flex items-center justify-center">
@@ -132,7 +132,7 @@ export default function Home() {
 
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <header className="h-[54px] border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur sticky top-0 z-20 flex items-center gap-3 px-4 sm:px-5">
+          <header className="h-[54px] border-b border-[var(--border)] bg-white/85 backdrop-blur-md sticky top-0 z-20 flex items-center gap-3 px-4 sm:px-5 shadow-[0_1px_0_var(--border)]">
             {/* Mobile hamburger */}
             <button
               onClick={() => setSidebarOpen(true)}
@@ -190,7 +190,7 @@ export default function Home() {
 
               {/* New CTA */}
               <button onClick={() => navigate("campaigns")}
-                className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black transition-colors shadow-sm">
+                className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-gradient-to-b from-[#1a1a18] to-[#0c0c0a] text-white text-[12px] font-semibold hover:opacity-90 transition-opacity shadow-sm border border-[rgba(255,255,255,0.08)]">
                 <Plus size={13} /> <span className="hidden sm:inline">Nueva</span>
               </button>
             </div>

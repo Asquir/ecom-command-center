@@ -371,23 +371,26 @@ export function Dashboard() {
       <AIPanel analysis={aiAnalysis} />
 
       {/* Main KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Ingresos", value: eur(m.revenue), sub: `${m.purchases} pedidos`, delta: null, ok: m.revenue > m.spend },
           { label: "Gasto en ads", value: eur(m.spend), sub: `CPM ${eur(cpm)}`, delta: null, ok: null },
           { label: "ROAS", value: `${roas.toFixed(2)}×`, sub: `BE: ${settings.beRoas > 0 ? settings.beRoas + "×" : "—"}`, delta: roasDelta, ok: settings.beRoas > 0 ? roas >= settings.beRoas : null },
           { label: "CPA", value: cpa > 0 ? eur(cpa) : "—", sub: `BE: ${settings.beCpa > 0 ? eur(settings.beCpa) : "—"}`, delta: cpa > 0 ? cpaDelta : null, ok: cpa > 0 && settings.beCpa > 0 ? cpa <= settings.beCpa : null },
         ].map(k => (
-          <div key={k.label} className="bg-white border border-[var(--border)] rounded-xl p-4 shadow-sm">
-            <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-2">{k.label}</div>
-            <div className={`font-mono font-bold text-[22px] ${k.ok === true ? "text-[var(--success)]" : k.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>{k.value}</div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[11px] text-[var(--ink-4)]">{k.sub}</span>
-              {k.delta !== null && (
-                <span className={`text-[10px] font-bold ${k.delta > 0 ? "text-[var(--success)]" : k.delta < 0 ? "text-[var(--danger)]" : "text-[var(--ink-4)]"}`}>
-                  {k.delta > 0 ? "+" : ""}{k.delta.toFixed(0)}% vs ayer
-                </span>
-              )}
+          <div key={k.label} className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)] overflow-hidden hover:shadow-[0_4px_24px_rgba(0,0,0,0.09)] transition-shadow">
+            <div className={`h-[3px] w-full ${k.ok === true ? "bg-gradient-to-r from-[var(--success)] to-[#22c55e]" : k.ok === false ? "bg-gradient-to-r from-[var(--danger)] to-[#ef4444]" : "bg-gradient-to-r from-[var(--gold-deep)] to-[var(--gold)]"}`} />
+            <div className="p-5">
+              <div className="text-[10px] font-bold text-[var(--ink-4)] uppercase tracking-widest mb-3">{k.label}</div>
+              <div className={`font-mono font-black text-[28px] leading-none mb-3 tracking-tight ${k.ok === true ? "text-[var(--success)]" : k.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>{k.value}</div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-[var(--ink-4)]">{k.sub}</span>
+                {k.delta !== null && (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${k.delta > 0 ? "bg-[var(--success-soft)] text-[var(--success)]" : k.delta < 0 ? "bg-[var(--danger-soft)] text-[var(--danger)]" : "bg-[var(--bg-inset)] text-[var(--ink-4)]"}`}>
+                    {k.delta > 0 ? "▲" : "▼"} {Math.abs(k.delta).toFixed(0)}%
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -399,20 +402,25 @@ export function Dashboard() {
           { label: "CTR", value: pct(ctr), ok: settings.ctrTarget > 0 ? ctr >= settings.ctrTarget : null },
           { label: "CPC", value: eur(cpc), ok: settings.cpcMax > 0 ? cpc <= settings.cpcMax : null },
           { label: "CPM", value: eur(cpm), ok: null },
-          { label: "Add to Cart", value: String(m.atc), ok: atcRate >= 10 ? true : atcRate > 0 && m.clicks > 10 ? false : null },
+          { label: "ATC", value: String(m.atc), ok: atcRate >= 10 ? true : atcRate > 0 && m.clicks > 10 ? false : null },
           { label: "Checkouts", value: String(m.checkouts), ok: null },
-          { label: "Beneficio est.", value: eur(profit), ok: profit > 0 },
+          { label: "Beneficio", value: eur(profit), ok: profit > 0 },
         ].map(k => (
-          <div key={k.label} className="bg-white border border-[var(--border)] rounded-xl p-3 shadow-sm">
-            <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-1">{k.label}</div>
-            <div className={`font-mono font-bold text-[16px] ${k.ok === true ? "text-[var(--success)]" : k.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>{k.value}</div>
+          <div key={k.label} className="bg-white rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.05),0_2px_8px_rgba(0,0,0,0.03)] p-3.5">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-[9px] font-bold text-[var(--ink-4)] uppercase tracking-wider">{k.label}</div>
+              {k.ok !== null && (
+                <div className={`w-1.5 h-1.5 rounded-full ${k.ok === true ? "bg-[var(--success)] shadow-[0_0_4px_var(--success)]" : "bg-[var(--danger)] shadow-[0_0_4px_var(--danger)]"}`} />
+              )}
+            </div>
+            <div className={`font-mono font-bold text-[18px] ${k.ok === true ? "text-[var(--success)]" : k.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>{k.value}</div>
           </div>
         ))}
       </div>
 
       {/* Funnel + Trend */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 bg-white border border-[var(--border)] rounded-xl shadow-sm">
+        <div className="lg:col-span-3 bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)]">
           <div className="p-4 border-b border-[var(--border)]">
             <div className="text-[13px] font-semibold text-[var(--ink-1)]">Salud del funnel · hoy</div>
             <div className="text-[11px] text-[var(--ink-4)]">ATC ≥10% · Checkout ≥50% · Compra ≥50%</div>
@@ -429,7 +437,7 @@ export function Dashboard() {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm">
+          <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)]">
             <div className="p-4 border-b border-[var(--border)]">
               <div className="text-[13px] font-semibold text-[var(--ink-1)]">Tendencia 7 días</div>
             </div>
@@ -451,7 +459,7 @@ export function Dashboard() {
               </div>
             </div>
           </div>
-          <div className="bg-white border border-[var(--border)] rounded-xl p-4 shadow-sm">
+          <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)] p-4">
             <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-3">Break-even · referencia</div>
             <div className="grid grid-cols-2 gap-3">
               {[
