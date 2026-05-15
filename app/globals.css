@@ -98,3 +98,47 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-color: var(--bg);
 }
+
+/* ── Animations ─────────────────────────────────────────────────── */
+@keyframes palette-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-palette-in { animation: palette-in 0.15s ease-out; }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slide-up 0.25s ease-out; }
+
+/* ── Focus ring ─────────────────────────────────────────────────── */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ── Number inputs ──────────────────────────────────────────────── */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] { -moz-appearance: textfield; }
+
+/* ── Smooth transitions ─────────────────────────────────────────── */
+* { transition-property: none; }
+button, a, input, select, textarea {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: 120ms;
+  transition-timing-function: ease;
+}
+
+/* ── Font numeric ───────────────────────────────────────────────── */
+.font-mono { font-variant-numeric: tabular-nums; }

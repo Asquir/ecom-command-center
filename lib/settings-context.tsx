@@ -22,6 +22,9 @@ export interface AppSettings {
   productName: string;
   productCost: number;
   onboarded: boolean;
+  userName: string;
+  userEmail: string;
+  storeName: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -31,6 +34,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pixelId: "", shopifyUrl: "",
   notifyKill: true, notifyScale: true, notifyPrimeTime: true, autoReport: false,
   productName: "", productCost: 0, onboarded: false,
+  userName: "", userEmail: "", storeName: "",
 };
 
 interface SettingsCtx {

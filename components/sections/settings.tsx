@@ -3,7 +3,7 @@ import { useState } from "react";
 import { eur } from "@/lib/utils";
 import { useSettings, DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings-context";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle } from "lucide-react";
+import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User } from "lucide-react";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -82,10 +82,22 @@ export function Settings() {
   return (
     <div className="space-y-5 max-w-2xl">
       <div>
-        <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Configuración · REVIARI</div>
+        <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Configuración</div>
         <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Ajustes</h1>
         <p className="text-[13px] text-[var(--ink-3)] mt-1">Los cambios aquí se aplican en toda la app: Dashboard, Campañas y Calculadora.</p>
       </div>
+
+      <Section title="Mi perfil" icon={<User size={14} />}>
+        <Field label="Tu nombre" hint="Aparece en el sidebar y el onboarding">
+          <Input value={settings.userName} onChange={v => set("userName", v)} />
+        </Field>
+        <Field label="Nombre de tienda" hint="Tu marca o nombre de negocio">
+          <Input value={settings.storeName} onChange={v => set("storeName", v)} />
+        </Field>
+        <Field label="Email" hint="Solo para identificar tu cuenta localmente">
+          <Input value={settings.userEmail} onChange={v => set("userEmail", v)} />
+        </Field>
+      </Section>
 
       <Section title="General" icon={<Globe size={14} />}>
         <Field label="Moneda" hint="Moneda para todas las métricas">
