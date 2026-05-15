@@ -122,6 +122,27 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
 }
 .animate-slide-up { animation: slide-up 0.25s ease-out; }
 
+@keyframes section-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-section-enter { animation: section-enter 0.22s ease-out; }
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(10px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-count-up { animation: count-up 0.38s cubic-bezier(0.16,1,0.3,1); }
+
+/* Card hover lift */
+.card-lift {
+  transition: transform 180ms ease, box-shadow 180ms ease !important;
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.1) !important;
+}
+
 /* ── Focus ring ─────────────────────────────────────────────────── */
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
   outline: 2px solid var(--gold);

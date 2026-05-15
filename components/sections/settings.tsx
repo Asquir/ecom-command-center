@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { eur } from "@/lib/utils";
 import { useSettings, DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings-context";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload } from "lucide-react";
+import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell } from "lucide-react";
 import { exportBackup, importBackup } from "@/lib/data-io";
+import { requestPermission, getPermissionStatus } from "@/lib/notifications";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -63,6 +64,11 @@ export function Settings() {
   const { settings, setSettings } = useSettings();
   const { success } = useToast();
   const [saved, setSaved] = useState(false);
+  const [notifStatus, setNotifStatus] = useState<string>("default");
+
+  useEffect(() => {
+    setNotifStatus(getPermissionStatus());
+  }, []);
 
   const set = <K extends keyof AppSettings>(key: K, val: AppSettings[K]) =>
     setSettings(prev => ({ ...prev, [key]: val }));
@@ -161,6 +167,26 @@ export function Settings() {
       </Section>
 
       <Section title="Notificaciones" icon={<Zap size={14} />}>
+        <Field label="Alertas del navegador" hint="Recibe notificaciones push en este dispositivo">
+          <button
+            onClick={async () => {
+              const granted = await requestPermission();
+              setNotifStatus(granted ? "granted" : "denied");
+              if (granted) success("Notificaciones activadas", "Recibirás alertas cuando el ROAS caiga.");
+              else success("Permiso denegado", "Actívalo desde la configuración del navegador.");
+            }}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${
+              notifStatus === "granted"
+                ? "bg-[var(--success-soft)] text-[var(--success)] border-[rgba(34,197,94,0.3)]"
+                : notifStatus === "denied"
+                ? "bg-[var(--danger-soft)] text-[var(--danger)] border-[rgba(239,68,68,0.3)]"
+                : "bg-[var(--ink-1)] text-white border-transparent hover:bg-black"
+            }`}
+          >
+            <Bell size={12} />
+            {notifStatus === "granted" ? "Activadas ✓" : notifStatus === "denied" ? "Bloqueadas" : "Activar alertas"}
+          </button>
+        </Field>
         {([
           { key: "notifyKill"      as const, label: "Alertas de kill rules",       hint: "Notificar cuando una campaña cumple criterio de pausa" },
           { key: "notifyScale"     as const, label: "Alertas de scale",             hint: "Notificar cuando una campaña supera ROAS ×1.2" },

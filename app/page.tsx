@@ -23,6 +23,7 @@ import { CashFlow } from "@/components/sections/cashflow";
 import { Lab } from "@/components/sections/lab";
 import { Bell, Moon, Sun, Plus, X, Command, Menu } from "lucide-react";
 import { SetupProgress } from "@/components/setup-progress";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 
 const SECTION_LABELS: Record<Section, string> = {
   dashboard:  "Dashboard · IA",
@@ -197,16 +198,19 @@ export default function Home() {
           </header>
 
           {/* Main content */}
-          <main className="flex-1 p-4 sm:p-5 lg:p-6 max-w-[1440px] w-full mx-auto space-y-4">
-            <SectionHint section={section} />
-            {section === "dashboard" && <SetupProgress onNavigate={navigate} />}
-            {sectionBody[section]}
+          <main className="flex-1 p-4 sm:p-5 lg:p-6 max-w-[1440px] w-full mx-auto pb-24 lg:pb-6">
+            <div key={section} className="animate-section-enter space-y-4">
+              <SectionHint section={section} />
+              {section === "dashboard" && <SetupProgress onNavigate={navigate} />}
+              {sectionBody[section]}
+            </div>
           </main>
         </div>
       </div>
 
       {/* Quick actions floating panel */}
       <QuickActionsPanel onNavigate={navigate} />
+      <MobileBottomNav active={section} onNavigate={navigate} />
     </>
   );
 }

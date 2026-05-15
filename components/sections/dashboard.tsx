@@ -1,17 +1,18 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocalStorage } from "@/lib/hooks";
 import { useSettings } from "@/lib/settings-context";
 import { useToast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/export";
 import { eur, pct } from "@/lib/utils";
 import { analyzeMetrics, type AIAnalysis } from "@/lib/ai-engine";
+import { notify } from "@/lib/notifications";
 import {
   Zap, AlertTriangle, Clock, Edit3, TrendingUp, TrendingDown,
   BarChart2, CheckCircle, XCircle, Brain, ChevronRight
 } from "lucide-react";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from "recharts";
 
 interface DailyMetrics {
@@ -239,6 +240,62 @@ function MetricsForm({ initial, onSave }: { initial?: DailyMetrics; onSave: (m: 
   );
 }
 
+function RoasHeatmap({ allMetrics, beRoas }: { allMetrics: DailyRecord; beRoas: number }) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    const k = d.toISOString().split("T")[0];
+    const m = allMetrics[k];
+    const roas = m && m.spend > 0 ? m.revenue / m.spend : null;
+    return {
+      label: d.toLocaleDateString("es-MX", { weekday: "short" }),
+      date: d.getDate(),
+      roas,
+    };
+  });
+
+  const getColor = (roas: number | null) => {
+    if (roas === null) return "bg-[var(--bg-inset)] border-[var(--border)]";
+    if (beRoas <= 0) return "bg-[var(--gold-soft)] border-[rgba(200,169,106,0.3)]";
+    if (roas >= beRoas * 1.3) return "bg-[var(--success)] border-[rgba(34,197,94,0.3)] shadow-[0_0_8px_rgba(34,197,94,0.25)]";
+    if (roas >= beRoas) return "bg-[rgba(34,197,94,0.4)] border-[rgba(34,197,94,0.25)]";
+    if (roas >= beRoas * 0.75) return "bg-[var(--warning-soft)] border-[rgba(245,158,11,0.3)]";
+    return "bg-[var(--danger-soft)] border-[rgba(239,68,68,0.3)]";
+  };
+  const getTextColor = (roas: number | null) => {
+    if (roas === null) return "text-[var(--ink-5)]";
+    if (beRoas <= 0) return "text-[var(--gold-deep)]";
+    if (roas >= beRoas) return "text-[var(--success)]";
+    if (roas >= beRoas * 0.75) return "text-[var(--warning)]";
+    return "text-[var(--danger)]";
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)] p-4">
+      <div className="text-[10px] font-bold text-[var(--ink-4)] uppercase tracking-widest mb-3">ROAS · Últimos 7 días</div>
+      <div className="flex gap-1.5">
+        {days.map((d, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+            <div title={d.roas !== null ? `${d.roas.toFixed(2)}×` : "Sin datos"}
+              className={`w-full rounded-lg border flex flex-col items-center justify-center py-2.5 transition-all ${getColor(d.roas)}`}>
+              <span className={`font-mono font-bold text-[11px] leading-none ${getTextColor(d.roas)}`}>
+                {d.roas !== null ? `${d.roas.toFixed(1)}×` : "—"}
+              </span>
+            </div>
+            <span className="text-[9px] font-medium text-[var(--ink-4)] capitalize">{d.label}</span>
+          </div>
+        ))}
+      </div>
+      {beRoas > 0 && (
+        <div className="flex gap-3 mt-2.5 text-[9px] text-[var(--ink-4)]">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[var(--success)] inline-block" /> Encima BE</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[var(--warning-soft)] border border-[rgba(245,158,11,0.3)] inline-block" /> Cerca</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[var(--danger-soft)] border border-[rgba(239,68,68,0.3)] inline-block" /> Por debajo</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FunnelBar({ label, value, max, conv, target, status }: {
   label: string; value: number; max: number; conv: number | null; target: number | null;
   status: "good" | "warn" | "bad" | "normal";
@@ -299,6 +356,16 @@ export function Dashboard() {
   const cpaDelta = pctDelta(cpa, ydCpa);
 
   const aiAnalysis = analyzeMetrics(allMetrics, settings.beCpa, settings.beRoas, settings.ctrTarget);
+
+  // Browser notification for ROAS drop (once per session)
+  const notifiedRef = useRef(false);
+  useEffect(() => {
+    if (notifiedRef.current || !m || !settings.notifyKill) return;
+    if (settings.beRoas > 0 && roas > 0 && roas < settings.beRoas * 0.8) {
+      notify("⚠️ ROAS por debajo del break-even", `ROAS actual: ${roas.toFixed(2)}× · BE: ${settings.beRoas}× — Revisa tus campañas.`);
+      notifiedRef.current = true;
+    }
+  }, []);
 
   const last7 = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i));
@@ -378,11 +445,11 @@ export function Dashboard() {
           { label: "ROAS", value: `${roas.toFixed(2)}×`, sub: `BE: ${settings.beRoas > 0 ? settings.beRoas + "×" : "—"}`, delta: roasDelta, ok: settings.beRoas > 0 ? roas >= settings.beRoas : null },
           { label: "CPA", value: cpa > 0 ? eur(cpa) : "—", sub: `BE: ${settings.beCpa > 0 ? eur(settings.beCpa) : "—"}`, delta: cpa > 0 ? cpaDelta : null, ok: cpa > 0 && settings.beCpa > 0 ? cpa <= settings.beCpa : null },
         ].map(k => (
-          <div key={k.label} className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)] overflow-hidden hover:shadow-[0_4px_24px_rgba(0,0,0,0.09)] transition-shadow">
+          <div key={k.label} className="card-lift bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)] overflow-hidden">
             <div className={`h-[3px] w-full ${k.ok === true ? "bg-gradient-to-r from-[var(--success)] to-[#22c55e]" : k.ok === false ? "bg-gradient-to-r from-[var(--danger)] to-[#ef4444]" : "bg-gradient-to-r from-[var(--gold-deep)] to-[var(--gold)]"}`} />
             <div className="p-5">
               <div className="text-[10px] font-bold text-[var(--ink-4)] uppercase tracking-widest mb-3">{k.label}</div>
-              <div className={`font-mono font-black text-[28px] leading-none mb-3 tracking-tight ${k.ok === true ? "text-[var(--success)]" : k.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>{k.value}</div>
+              <div className={`animate-count-up font-mono font-black text-[28px] leading-none mb-3 tracking-tight ${k.ok === true ? "text-[var(--success)]" : k.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>{k.value}</div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] text-[var(--ink-4)]">{k.sub}</span>
                 {k.delta !== null && (
@@ -437,42 +504,37 @@ export function Dashboard() {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
+          <RoasHeatmap allMetrics={allMetrics} beRoas={settings.beRoas} />
           <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)]">
             <div className="p-4 border-b border-[var(--border)]">
               <div className="text-[13px] font-semibold text-[var(--ink-1)]">Tendencia 7 días</div>
             </div>
             <div className="p-4">
               <ResponsiveContainer width="100%" height={130}>
-                <LineChart data={last7}>
+                <AreaChart data={last7}>
+                  <defs>
+                    <linearGradient id="gradIngresos" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#111111" stopOpacity={0.12} />
+                      <stop offset="95%" stopColor="#111111" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradGasto" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#C8A96A" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#C8A96A" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--ink-4)" }} />
                   <YAxis tick={{ fontSize: 10, fill: "var(--ink-4)" }} width={35} />
                   <Tooltip contentStyle={{ background: "white", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
                     formatter={(v, name) => [`${v} €`, name === "ingresos" ? "Ingresos" : "Gasto"]} />
-                  <Line dataKey="ingresos" stroke="var(--ink-1)" strokeWidth={2} dot={false} />
-                  <Line dataKey="gasto" stroke="var(--gold)" strokeWidth={2} dot={false} strokeDasharray="4 2" />
-                </LineChart>
+                  <Area type="monotone" dataKey="ingresos" stroke="var(--ink-1)" strokeWidth={2} fill="url(#gradIngresos)" dot={false} />
+                  <Area type="monotone" dataKey="gasto" stroke="var(--gold)" strokeWidth={2} fill="url(#gradGasto)" dot={false} strokeDasharray="4 2" />
+                </AreaChart>
               </ResponsiveContainer>
               <div className="flex gap-4 text-[11px] text-[var(--ink-3)] mt-1">
                 <span className="flex items-center gap-1"><span className="w-4 h-0.5 bg-[var(--ink-1)] inline-block" /> Ingresos</span>
                 <span className="flex items-center gap-1"><span className="w-4 h-0.5 bg-[var(--gold)] inline-block" /> Gasto</span>
               </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)] p-4">
-            <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-3">Break-even · referencia</div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: "BE CPA", value: settings.beCpa > 0 ? eur(settings.beCpa) : "—" },
-                { label: "BE ROAS", value: settings.beRoas > 0 ? `${settings.beRoas}×` : "—" },
-                { label: "CPA hoy", value: cpa > 0 ? eur(cpa) : "—", ok: cpa > 0 && settings.beCpa > 0 ? cpa <= settings.beCpa : undefined },
-                { label: "ROAS hoy", value: roas > 0 ? `${roas.toFixed(2)}×` : "—", ok: roas > 0 && settings.beRoas > 0 ? roas >= settings.beRoas : undefined },
-              ].map(s => (
-                <div key={s.label}>
-                  <div className="text-[10px] text-[var(--ink-4)] mb-0.5 uppercase tracking-wide">{s.label}</div>
-                  <div className={`font-mono font-bold text-[16px] ${s.ok === true ? "text-[var(--success)]" : s.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>{s.value}</div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
