@@ -1,10 +1,11 @@
 "use client";
+import { useState } from "react";
 import { cx } from "@/lib/utils";
 import { useSettings } from "@/lib/settings-context";
 import {
   LayoutDashboard, Calculator, Play, Shield, CheckSquare,
   Package, Megaphone, Calendar, ShoppingBag, Receipt,
-  FileBarChart, Settings, FlaskConical, Wallet, TrendingUp, X, Sparkles, Search
+  FileBarChart, Settings, FlaskConical, Wallet, TrendingUp, X, Sparkles, Search, ChevronDown
 } from "lucide-react";
 
 export type Section =
@@ -14,42 +15,44 @@ export type Section =
 
 const NAV_GROUPS: {
   label: string;
+  collapsed?: boolean; // collapsed by default for advanced sections
   items: { id: Section; label: string; icon: React.ElementType; badge?: string }[];
 }[] = [
   {
-    label: "Decisiones",
+    label: "Diario",
     items: [
-      { id: "dashboard",        label: "Dashboard",         icon: LayoutDashboard },
-      { id: "campaigns",        label: "Campañas",          icon: Megaphone },
-      { id: "creatives",        label: "Creativos",         icon: Play },
-      { id: "creative-studio",  label: "Creative Studio",   icon: Sparkles, badge: "PRO" },
-      { id: "rules",            label: "Reglas kill/scale", icon: Shield },
-      { id: "lab",              label: "Lab A/B",           icon: FlaskConical, badge: "BETA" },
+      { id: "dashboard",   label: "Dashboard · IA",    icon: LayoutDashboard },
+      { id: "campaigns",   label: "Campañas",          icon: Megaphone },
+      { id: "creatives",   label: "Creativos",         icon: Play },
     ],
   },
   {
     label: "Productos",
     items: [
-      { id: "products",   label: "Productos",         icon: Package },
-      { id: "research",   label: "Investigación",     icon: Search, badge: "NEW" },
-      { id: "planner",    label: "Testing plan",      icon: Calendar },
-      { id: "orders",     label: "Pedidos",           icon: ShoppingBag },
+      { id: "products",   label: "Productos",          icon: Package },
+      { id: "research",   label: "Investigación",      icon: Search, badge: "NEW" },
+      { id: "planner",    label: "Testing plan",       icon: Calendar },
+      { id: "orders",     label: "Pedidos",            icon: ShoppingBag },
     ],
   },
   {
-    label: "Finanzas",
+    label: "Herramientas",
+    collapsed: true,
     items: [
-      { id: "cashflow",   label: "Flujo de caja",     icon: Wallet },
-      { id: "calculator", label: "Calculadora",       icon: Calculator },
-      { id: "expenses",   label: "Gastos fijos",      icon: Receipt },
-      { id: "reports",    label: "Reportes",          icon: FileBarChart },
+      { id: "creative-studio", label: "Creative Studio", icon: Sparkles, badge: "PRO" },
+      { id: "lab",             label: "Lab A/B",         icon: FlaskConical },
+      { id: "rules",           label: "Reglas kill/scale",icon: Shield },
+      { id: "cashflow",        label: "Flujo de caja",   icon: Wallet },
+      { id: "calculator",      label: "Calculadora",     icon: Calculator },
+      { id: "expenses",        label: "Gastos fijos",    icon: Receipt },
+      { id: "reports",         label: "Reportes",        icon: FileBarChart },
     ],
   },
   {
     label: "Config",
     items: [
-      { id: "checklist",  label: "Checklist",         icon: CheckSquare },
-      { id: "settings",   label: "Ajustes",           icon: Settings },
+      { id: "checklist",  label: "Checklist",           icon: CheckSquare },
+      { id: "settings",   label: "Ajustes",             icon: Settings },
     ],
   },
 ];
@@ -72,6 +75,22 @@ function getInitials(name: string): string {
 export function Sidebar({ active, onNavigate, onOpenPalette, mobile, onMobileClose }: SidebarProps) {
   const { settings } = useSettings();
   const initials = getInitials(settings.userName || settings.storeName);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    // Auto-expand if the active section is in a collapsed group
+    const expanded = new Set<string>();
+    NAV_GROUPS.forEach(g => {
+      if (!g.collapsed || g.items.some(i => i.id === active)) expanded.add(g.label);
+    });
+    return expanded;
+  });
+  const toggleGroup = (label: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  };
 
   const handleNav = (s: Section) => {
     onNavigate(s);
@@ -121,38 +140,54 @@ export function Sidebar({ active, onNavigate, onOpenPalette, mobile, onMobileClo
         )}
 
         {/* Nav groups */}
-        {NAV_GROUPS.map(group => (
-          <div key={group.label} className="mb-0.5">
-            <div className="text-[9px] font-bold text-[rgba(255,255,255,0.2)] uppercase tracking-[0.12em] px-2 py-2">{group.label}</div>
-            {group.items.map(n => {
-              const Icon = n.icon;
-              const isActive = active === n.id;
-              return (
+        {NAV_GROUPS.map(group => {
+          const isCollapsible = !!group.collapsed;
+          const isOpen = expandedGroups.has(group.label);
+          const hasActiveItem = group.items.some(i => i.id === active);
+          const showItems = !isCollapsible || isOpen || hasActiveItem;
+          return (
+            <div key={group.label} className="mb-0.5">
+              {isCollapsible ? (
                 <button
-                  key={n.id}
-                  onClick={() => handleNav(n.id)}
-                  className={cx(
-                    "flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[12.5px] font-medium w-full text-left transition-all mb-0.5 relative",
-                    isActive
-                      ? "bg-[rgba(200,169,106,0.13)] text-[var(--gold)] font-semibold border border-[rgba(200,169,106,0.2)]"
-                      : "text-[rgba(255,255,255,0.42)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[rgba(255,255,255,0.85)]"
-                  )}
+                  onClick={() => toggleGroup(group.label)}
+                  className="flex items-center justify-between w-full text-[9px] font-bold text-[rgba(255,255,255,0.2)] uppercase tracking-[0.12em] px-2 py-2 hover:text-[rgba(255,255,255,0.4)] transition-colors"
                 >
-                  {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-[var(--gold)] rounded-r-full shadow-[0_0_8px_rgba(200,169,106,0.7)]" />
-                  )}
-                  <Icon size={13} className={isActive ? "text-[var(--gold)]" : "text-[rgba(255,255,255,0.28)]"} />
-                  <span className="flex-1">{n.label}</span>
-                  {n.badge && !isActive && (
-                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-[rgba(200,169,106,0.12)] text-[var(--gold)] uppercase tracking-wide border border-[rgba(200,169,106,0.18)]">
-                      {n.badge}
-                    </span>
-                  )}
+                  <span>{group.label}</span>
+                  <ChevronDown size={10} className={cx("transition-transform", isOpen ? "rotate-180" : "")} />
                 </button>
-              );
-            })}
-          </div>
-        ))}
+              ) : (
+                <div className="text-[9px] font-bold text-[rgba(255,255,255,0.2)] uppercase tracking-[0.12em] px-2 py-2">{group.label}</div>
+              )}
+              {showItems && group.items.map(n => {
+                const Icon = n.icon;
+                const isActive = active === n.id;
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNav(n.id)}
+                    className={cx(
+                      "flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[12.5px] font-medium w-full text-left transition-all mb-0.5 relative",
+                      isActive
+                        ? "bg-[rgba(200,169,106,0.13)] text-[var(--gold)] font-semibold border border-[rgba(200,169,106,0.2)]"
+                        : "text-[rgba(255,255,255,0.42)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[rgba(255,255,255,0.85)]"
+                    )}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-[var(--gold)] rounded-r-full shadow-[0_0_8px_rgba(200,169,106,0.7)]" />
+                    )}
+                    <Icon size={13} className={isActive ? "text-[var(--gold)]" : "text-[rgba(255,255,255,0.28)]"} />
+                    <span className="flex-1">{n.label}</span>
+                    {n.badge && !isActive && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-[rgba(200,169,106,0.12)] text-[var(--gold)] uppercase tracking-wide border border-[rgba(200,169,106,0.18)]">
+                        {n.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
 
         {/* Bottom widgets */}
         <div className="mt-auto pt-2 border-t border-[rgba(255,255,255,0.06)] space-y-1.5">
