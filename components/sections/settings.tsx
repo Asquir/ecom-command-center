@@ -84,7 +84,24 @@ export function Settings() {
     setTimeout(() => setSaved(false), 2500);
   };
 
-  const beRoasCalc = settings.aov && settings.margin ? (100 / settings.margin).toFixed(2) : "—";
+  const calcFromPriceCost = (price: number, cost: number) => {
+    const margin = price > 0 ? Math.max(0, ((price - cost) / price) * 100) : 0;
+    const beCpa  = price > cost ? +(price - cost).toFixed(2) : 0;
+    const beRoas = margin > 0 ? +(100 / margin).toFixed(2) : 0;
+    return { margin: +margin.toFixed(1), beCpa, beRoas };
+  };
+
+  const handlePrice = (v: string) => {
+    const price = parseFloat(v) || 0;
+    const { margin, beCpa, beRoas } = calcFromPriceCost(price, settings.productCost || 0);
+    setSettings(prev => ({ ...prev, aov: price, margin, beCpa, beRoas }));
+  };
+
+  const handleCost = (v: string) => {
+    const cost = parseFloat(v) || 0;
+    const { margin, beCpa, beRoas } = calcFromPriceCost(settings.aov || 0, cost);
+    setSettings(prev => ({ ...prev, productCost: cost, margin, beCpa, beRoas }));
+  };
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -131,18 +148,30 @@ export function Settings() {
       </Section>
 
       <Section title="Producto activo" icon={<Settings2 size={14} />}>
-        <Field label="AOV (ticket medio)" hint="Precio de venta promedio">
-          <Input value={settings.aov} onChange={setStr("aov")} suffix="€" />
+        <Field label="Nombre del producto" hint="El que estás testeando actualmente">
+          <Input value={settings.productName} onChange={v => set("productName", v)} />
         </Field>
-        <Field label="Margen neto" hint="Margen tras COGS, envío y apps (sin ads)">
-          <Input value={settings.margin} onChange={setStr("margin")} suffix="%" />
+        <Field label="Precio de venta" hint="Lo que paga el cliente (AOV)">
+          <Input value={settings.aov || ""} onChange={handlePrice} suffix="€" />
         </Field>
-        <Field label="BE CPA" hint="Coste por adquisición máximo para ser rentable">
-          <Input value={settings.beCpa} onChange={setStr("beCpa")} suffix="€" />
+        <Field label="Coste total" hint="Producto + envío + apps">
+          <Input value={settings.productCost || ""} onChange={handleCost} suffix="€" />
         </Field>
-        <Field label="BE ROAS" hint={`Calculado: ${beRoasCalc}× basado en margen`}>
-          <Input value={settings.beRoas} onChange={setStr("beRoas")} suffix="×" />
-        </Field>
+        {/* Computed fields — read only */}
+        {settings.aov > 0 && settings.productCost > 0 && (
+          <div className="grid grid-cols-3 gap-2 p-3 bg-[var(--bg-inset)] rounded-xl border border-[var(--border)]">
+            {[
+              { label: "Margen",  value: settings.margin > 0 ? `${settings.margin.toFixed(1)}%` : "—" },
+              { label: "BE CPA",  value: settings.beCpa > 0  ? `${settings.beCpa}€` : "—" },
+              { label: "BE ROAS", value: settings.beRoas > 0 ? `${settings.beRoas}×` : "—" },
+            ].map(s => (
+              <div key={s.label} className="text-center">
+                <div className="text-[9px] font-bold text-[var(--ink-4)] uppercase tracking-wider mb-0.5">{s.label}</div>
+                <div className="font-mono font-bold text-[14px] text-[var(--ink-1)]">{s.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </Section>
 
       <Section title="Benchmarks de decisión" icon={<Target size={14} />}>

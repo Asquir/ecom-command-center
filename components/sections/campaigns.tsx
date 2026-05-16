@@ -8,7 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
 import { downloadCSV } from "@/lib/export";
-import { TrendingUp, TrendingDown, Eye, X, ChevronRight, ChevronsUpDown, Zap, Download, Plus, CheckCircle, Trash2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Eye, X, ChevronRight, ChevronsUpDown, Zap, Download, Plus, CheckCircle, Trash2, Edit3 } from "lucide-react";
 
 function semaphoreColor(d: DecisionKind) {
   if (d === "scale") return "bg-[var(--success)]";
@@ -201,11 +201,101 @@ function ScaleProtocolModal({ campaign, beRoas, onClose, onConfirm }: {
   );
 }
 
+interface MetricFields { spend: string; revenue: string; purchases: string; ctr: string; }
+
+function MetricUpdateModal({ campaign, beRoas, beCpa, onClose, onSave }: {
+  campaign: CampaignState; beRoas: number; beCpa: number;
+  onClose: () => void; onSave: (data: Partial<CampaignState>) => void;
+}) {
+  const [f, setF] = useState<MetricFields>({
+    spend:     campaign.spend > 0     ? String(campaign.spend)     : "",
+    revenue:   campaign.revenue > 0   ? String(campaign.revenue)   : "",
+    purchases: campaign.purchases > 0 ? String(campaign.purchases) : "",
+    ctr:       campaign.ctr > 0       ? String(campaign.ctr)       : "",
+  });
+  const upd = (k: keyof MetricFields) => (v: string) => setF(p => ({ ...p, [k]: v }));
+  const n = (v: string) => parseFloat(v) || 0;
+  const spend = n(f.spend), revenue = n(f.revenue), purchases = n(f.purchases), ctr = n(f.ctr);
+  const roas = spend > 0 ? revenue / spend : 0;
+  const cpa  = purchases > 0 ? spend / purchases : 0;
+  const cpc  = ctr > 0 && spend > 0 ? (spend / ((ctr / 100) * 1000)) : 0;
+
+  function deriveDecision(): DecisionKind {
+    if (spend === 0) return "data";
+    if (beRoas > 0 && roas >= beRoas * 1.2) return "scale";
+    if (beRoas > 0 && roas < beRoas * 0.65) return "kill";
+    if (beCpa > 0 && cpa > beCpa * 1.8) return "kill";
+    if (beRoas > 0 && roas >= beRoas) return "watch";
+    return "data";
+  }
+  const decision = deriveDecision();
+  const decisionColor = { scale: "text-[var(--success)]", kill: "text-[var(--danger)]", watch: "text-[var(--gold-deep)]", data: "text-[var(--ink-3)]", paused: "text-[var(--ink-4)]" };
+
+  const inputCls = "w-full h-9 px-2.5 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] font-mono bg-white";
+
+  return (
+    <Modal open onClose={onClose} title={`Métricas — ${campaign.name}`}>
+      <div className="space-y-4">
+        <div className="text-[11px] text-[var(--ink-3)] bg-[var(--bg-inset)] rounded-lg px-3 py-2">
+          Copia los datos de Meta Ads Manager para esta campaña. La decisión kill/scale se actualizará automáticamente.
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            { k: "spend"     as const, label: "Gasto en ads",  suffix: "€" },
+            { k: "revenue"   as const, label: "Ingresos",      suffix: "€" },
+            { k: "purchases" as const, label: "Compras",       suffix: "" },
+            { k: "ctr"       as const, label: "CTR",           suffix: "%" },
+          ] as { k: keyof MetricFields; label: string; suffix: string }[]).map(({ k, label, suffix }) => (
+            <div key={k}>
+              <label className="text-[11px] font-semibold text-[var(--ink-3)] block mb-1">{label}</label>
+              <div className="flex items-center border border-[var(--border)] rounded-lg overflow-hidden focus-within:border-[var(--gold)]">
+                <input value={f[k]} onChange={e => upd(k)(e.target.value)} type="number" min="0" step="0.01"
+                  className="flex-1 h-9 px-2.5 text-[13px] font-mono outline-none bg-white" />
+                {suffix && <span className="px-2 text-[11px] text-[var(--ink-4)] bg-[var(--bg-inset)] border-l border-[var(--border)] h-9 flex items-center">{suffix}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+        {spend > 0 && (
+          <div className="grid grid-cols-3 gap-2 p-3 bg-[var(--bg-inset)] rounded-xl">
+            <div>
+              <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">ROAS</div>
+              <div className={`font-mono font-bold text-[15px] ${beRoas > 0 ? (roas >= beRoas ? "text-[var(--success)]" : "text-[var(--danger)]") : "text-[var(--ink-1)]"}`}>{roas.toFixed(2)}×</div>
+            </div>
+            <div>
+              <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">CPA</div>
+              <div className={`font-mono font-bold text-[15px] ${beCpa > 0 ? (cpa <= beCpa ? "text-[var(--success)]" : "text-[var(--danger)]") : "text-[var(--ink-1)]"}`}>{purchases > 0 ? `€${cpa.toFixed(2)}` : "—"}</div>
+            </div>
+            <div>
+              <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">Decisión</div>
+              <div className={`font-bold text-[12px] uppercase ${decisionColor[decision]}`}>{decision}</div>
+            </div>
+          </div>
+        )}
+        <div className="flex gap-2 pt-1">
+          <button onClick={() => {
+            onSave({
+              spend, revenue, purchases, roas, cpa, ctr, cpc,
+              decision,
+              diag: spend > 0 ? `ROAS ${roas.toFixed(2)}× · CPA €${cpa.toFixed(2)} · CTR ${ctr.toFixed(1)}%` : campaign.diag,
+            });
+          }} disabled={!spend}
+            className="flex-1 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black disabled:opacity-40 flex items-center justify-center gap-2">
+            Guardar métricas
+          </button>
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--ink-3)] text-[13px] hover:bg-[var(--bg-inset)]">Cancelar</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function Campaigns() {
   const { settings } = useSettings();
   const { success, warning, info } = useToast();
   const [campaigns, setCampaigns] = useLocalStorage<CampaignState[]>("ecc-campaigns", []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [metricsModal, setMetricsModal] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
   const [newModal, setNewModal] = useState(false);
   const [newName, setNewName] = useState("");
@@ -261,6 +351,12 @@ export function Campaigns() {
     setSelectedId(null);
   };
 
+  const saveMetrics = (id: string, data: Partial<CampaignState>) => {
+    setCampaigns(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+    success("Métricas actualizadas", data.roas != null ? `ROAS ${data.roas.toFixed(2)}× · CPA ${data.cpa != null && data.cpa > 0 ? eur(data.cpa) : "—"}` : "");
+    setMetricsModal(null);
+  };
+
   const deleteCampaign = (id: string) => {
     const c = campaigns.find(x => x.id === id);
     if (!confirm(`¿Eliminar la campaña "${c?.name}"? Esta acción no se puede deshacer.`)) return;
@@ -289,19 +385,23 @@ export function Campaigns() {
     success("CSV descargado", "campanas.csv guardado en tu carpeta de descargas.");
   };
 
+  const countryFlag: Record<string, string> = { MX: "🇲🇽 MX", ES: "🇪🇸 ES", US: "🇺🇸 US" };
+
   const createCampaign = () => {
     if (!newName.trim()) return;
     const id = `c${Date.now()}`;
+    const flag = countryFlag[settings.country] ?? "🌍";
+    const autoName = newName || (settings.productName ? `${settings.productName} · Compras` : "Nueva campaña");
     setCampaigns(prev => [...prev, {
-      id, name: newName, product: "p1", objective: "Compras",
-      type: "SBO", country: "🇲🇽 MX", budget: parseFloat(newBudget) || 15,
-      started: "Hoy", status: "Activa",
+      id, name: autoName, product: "p1", objective: "Compras",
+      type: "SBO", country: flag, budget: parseFloat(newBudget) || 15,
+      started: new Date().toLocaleDateString("es-MX", { day: "numeric", month: "short" }), status: "Activa",
       spend: 0, revenue: 0, roas: 0, cpa: 0, cpm: 0, cpc: 0,
       ctr: 0, hookRate: 0, holdRate: 0, atc: 0, ic: 0, purchases: 0, creatives: 0,
       decision: "data" as DecisionKind,
-      diag: "Campaña recién creada. Espera datos antes de tomar decisiones.",
+      diag: "Campaña recién creada. Añade las métricas de Meta Ads Manager para ver la decisión.",
     }]);
-    success("Campaña creada", newName);
+    success("Campaña creada", autoName);
     setNewName(""); setNewBudget(""); setNewModal(false);
   };
 
@@ -433,6 +533,10 @@ export function Campaigns() {
               {isSelected && (
                 <div className="border-t border-[var(--border)] p-4 bg-[var(--bg-inset)] space-y-3">
                   <div className="text-[12px] text-[var(--ink-2)] bg-white border border-[var(--border)] rounded-lg p-3 leading-relaxed">{c.diag}</div>
+                  <button onClick={() => setMetricsModal(c.id)}
+                    className="w-full text-[12px] font-medium py-2 rounded-lg border border-[var(--gold)] text-[var(--gold-deep)] bg-[var(--gold-soft)] flex items-center justify-center gap-1.5">
+                    <Edit3 size={12} /> Actualizar métricas
+                  </button>
                   <div className="flex flex-wrap gap-2">
                     {c.decision === "scale" && (
                       <button onClick={() => openScaleProtocol(c)}
@@ -552,6 +656,10 @@ export function Campaigns() {
                 ))}
               </div>
               <div className="pt-2 border-t border-[var(--border)] space-y-2">
+                <button onClick={() => setMetricsModal(selected.id)}
+                  className="w-full text-[12px] font-medium py-2 rounded-lg border border-[var(--gold)] text-[var(--gold-deep)] bg-[var(--gold-soft)] flex items-center justify-center gap-1.5 hover:bg-[rgba(200,169,106,0.2)]">
+                  <Edit3 size={12} /> Actualizar métricas
+                </button>
                 {selected.decision === "scale" && (
                   <button onClick={() => openScaleProtocol(selected)}
                     className="w-full text-[12px] font-medium py-2 rounded-lg bg-[var(--success)] text-white flex items-center justify-center gap-1.5 hover:opacity-90">
@@ -602,6 +710,20 @@ export function Campaigns() {
           onConfirm={() => doScale(scaleProtocol.id)}
         />
       )}
+
+      {metricsModal && (() => {
+        const c = campaigns.find(x => x.id === metricsModal);
+        if (!c) return null;
+        return (
+          <MetricUpdateModal
+            campaign={c}
+            beRoas={beRoas}
+            beCpa={settings.beCpa || 0}
+            onClose={() => setMetricsModal(null)}
+            onSave={data => saveMetrics(c.id, data)}
+          />
+        );
+      })()}
     </div>
   );
 }

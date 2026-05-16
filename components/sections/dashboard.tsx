@@ -189,6 +189,7 @@ function NumInput({ label, hint, value, onChange, suffix }: {
 }
 
 function MetricsForm({ initial, onSave }: { initial?: DailyMetrics; onSave: (m: DailyMetrics) => void }) {
+  const { settings } = useSettings();
   const [spend, setSpend] = useState(initial ? String(initial.spend) : "");
   const [revenue, setRevenue] = useState(initial ? String(initial.revenue) : "");
   const [clicks, setClicks] = useState(initial ? String(initial.clicks) : "");
@@ -207,6 +208,30 @@ function MetricsForm({ initial, onSave }: { initial?: DailyMetrics; onSave: (m: 
           Introduce los datos de Meta Ads Manager. La IA analizará tus resultados y te dirá exactamente qué hacer.
         </p>
       </div>
+
+      {/* Product context */}
+      {settings.productName && (
+        <div className="flex items-center justify-between p-3 bg-[var(--gold-soft)] border border-[rgba(200,169,106,0.2)] rounded-xl">
+          <div>
+            <div className="text-[9px] font-bold text-[var(--ink-4)] uppercase tracking-wider mb-0.5">Producto activo</div>
+            <div className="text-[13px] font-semibold text-[var(--ink-1)]">{settings.productName}</div>
+          </div>
+          <div className="flex gap-4">
+            {settings.beRoas > 0 && (
+              <div className="text-right">
+                <div className="text-[9px] text-[var(--ink-4)]">BE ROAS</div>
+                <div className="font-mono font-bold text-[13px] text-[var(--gold-deep)]">{settings.beRoas}×</div>
+              </div>
+            )}
+            {settings.beCpa > 0 && (
+              <div className="text-right">
+                <div className="text-[9px] text-[var(--ink-4)]">BE CPA</div>
+                <div className="font-mono font-bold text-[13px] text-[var(--gold-deep)]">{eur(settings.beCpa)}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="bg-white border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-5">
         <div>
           <div className="text-[12px] font-semibold text-[var(--ink-3)] uppercase tracking-wider mb-3">💸 Inversión e ingresos</div>
@@ -328,9 +353,21 @@ export function Dashboard() {
   const [editing, setEditing] = useState(false);
   const primeTime = usePrimeTimeCountdown(settings.country);
   const todayLabel = new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+  const notifiedRef = useRef(false);
 
   const todayData = allMetrics[today] ?? null;
   const saveMetrics = (m: DailyMetrics) => { setAllMetrics(prev => ({ ...prev, [today]: m })); setEditing(false); };
+
+  // Compute for notification check (needed before early return)
+  const todayRoas = todayData && todayData.spend > 0 ? todayData.revenue / todayData.spend : 0;
+
+  useEffect(() => {
+    if (notifiedRef.current || !todayData || !settings.notifyKill) return;
+    if (settings.beRoas > 0 && todayRoas > 0 && todayRoas < settings.beRoas * 0.8) {
+      notify("⚠️ ROAS por debajo del break-even", `ROAS actual: ${todayRoas.toFixed(2)}× · BE: ${settings.beRoas}× — Revisa tus campañas.`);
+      notifiedRef.current = true;
+    }
+  }, [todayData]);
 
   if (!todayData || editing) return <MetricsForm initial={todayData ?? undefined} onSave={saveMetrics} />;
 
@@ -356,16 +393,6 @@ export function Dashboard() {
   const cpaDelta = pctDelta(cpa, ydCpa);
 
   const aiAnalysis = analyzeMetrics(allMetrics, settings.beCpa, settings.beRoas, settings.ctrTarget);
-
-  // Browser notification for ROAS drop (once per session)
-  const notifiedRef = useRef(false);
-  useEffect(() => {
-    if (notifiedRef.current || !m || !settings.notifyKill) return;
-    if (settings.beRoas > 0 && roas > 0 && roas < settings.beRoas * 0.8) {
-      notify("⚠️ ROAS por debajo del break-even", `ROAS actual: ${roas.toFixed(2)}× · BE: ${settings.beRoas}× — Revisa tus campañas.`);
-      notifiedRef.current = true;
-    }
-  }, []);
 
   const last7 = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i));
