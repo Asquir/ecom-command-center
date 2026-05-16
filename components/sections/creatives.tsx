@@ -463,11 +463,17 @@ export function Creatives() {
             {creatives.length} creativos · {Array.from(new Set(creatives.map(c => c.angle))).length} ángulos
           </div>
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Creativos</h1>
-          <p className="text-[13px] text-[var(--ink-3)] mt-1">Score, fatiga y diagnóstico. Duplica ganadores, apaga los que se agotan.</p>
+          <p className="text-[13px] text-[var(--ink-3)] mt-1">Biblioteca de tus anuncios — score, fatiga y diagnóstico. Actualiza cuando quieras, no a diario.</p>
         </div>
         <button onClick={() => setAddModal(true)} className="text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black flex items-center gap-1.5">
           <Plus size={12} /> Subir creativo
         </button>
+      </div>
+
+      {/* Context note */}
+      <div className="flex items-center gap-2 p-3 bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[12px] text-[var(--ink-3)]">
+        <span className="text-[14px]">🎬</span>
+        <span><strong className="text-[var(--ink-1)]">Los datos de creativos son acumulados</strong> — cuánto gasta/genera cada anuncio desde que lo lanzaste. Los totales diarios van en el <strong className="text-[var(--ink-1)]">Dashboard</strong>.</span>
       </div>
 
       {/* Fatigue alert banner */}

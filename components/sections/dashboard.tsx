@@ -515,69 +515,146 @@ function MetricsForm({ initial, onSave }: { initial?: DailyMetrics; onSave: (m: 
   const [atc, setAtc] = useState(initial ? String(initial.atc) : "");
   const [checkouts, setCheckouts] = useState(initial ? String(initial.checkouts) : "");
   const [purchases, setPurchases] = useState(initial ? String(initial.purchases) : "");
+  const [showGuide, setShowGuide] = useState(false);
   const n = (v: string) => parseFloat(v) || 0;
 
+  const GUIDE_STEPS = [
+    { step: "1", text: "Abre Meta Ads Manager → columna izquierda 'Campañas'", label: "Ir a Meta →", url: "https://adsmanager.facebook.com/" },
+    { step: "2", text: "En el panel de métricas, filtra por 'Hoy' en el selector de fechas", label: null, url: null },
+    { step: "3", text: "Copia los totales de abajo: Importe gastado, Compras, Valor de conversión de compras, Clics en el enlace, Impresiones, Añadir al carrito, Inicio del proceso de pago", label: null, url: null },
+  ];
+
   return (
-    <div className="space-y-5 max-w-2xl">
+    <div className="space-y-4 max-w-2xl">
+      {/* Header */}
       <div>
-        <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Dashboard · Métricas de hoy</div>
-        <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">¿Qué pasó hoy?</h1>
-        <p className="text-[13px] text-[var(--ink-3)] mt-1">
-          Introduce los datos de Meta Ads Manager. La IA analizará tus resultados y te dirá exactamente qué hacer.
-        </p>
+        <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Dashboard · Hoy</div>
+        <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">
+          {initial ? "Editar métricas de hoy" : "¿Cuánto gastaste y vendiste hoy?"}
+        </h1>
       </div>
+
+      {/* Source explainer — always visible */}
+      <div className="bg-[var(--gold-soft)] border border-[rgba(200,169,106,0.25)] rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="text-[18px] leading-none mt-0.5">📋</div>
+          <div className="flex-1">
+            <div className="text-[13px] font-semibold text-[var(--ink-1)] mb-1">
+              Copia los totales del día de Meta Ads Manager
+            </div>
+            <div className="text-[12px] text-[var(--ink-2)] leading-relaxed mb-2">
+              Son los números de <strong>todas tus campañas combinadas</strong> para hoy. No los de una sola campaña — los totales.
+              Tarda menos de 2 minutos.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a href="https://adsmanager.facebook.com/" target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black transition-colors">
+                Abrir Meta Ads Manager
+              </a>
+              <button onClick={() => setShowGuide(g => !g)}
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg border border-[rgba(200,169,106,0.3)] text-[var(--ink-2)] hover:bg-[rgba(200,169,106,0.1)] transition-colors">
+                {showGuide ? "Ocultar guía" : "¿Dónde encuentro los datos? →"}
+              </button>
+            </div>
+          </div>
+        </div>
+        {showGuide && (
+          <div className="mt-4 pt-4 border-t border-[rgba(200,169,106,0.2)] space-y-2.5">
+            {GUIDE_STEPS.map(s => (
+              <div key={s.step} className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-[var(--ink-1)] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">{s.step}</div>
+                <div className="text-[12px] text-[var(--ink-2)] flex-1 leading-relaxed">{s.text}
+                  {s.url && <a href={s.url} target="_blank" rel="noopener noreferrer" className="ml-2 text-[var(--gold-deep)] font-semibold hover:underline">{s.label}</a>}
+                </div>
+              </div>
+            ))}
+            <div className="bg-white/60 rounded-lg p-3 mt-1">
+              <div className="text-[10px] font-bold text-[var(--ink-4)] uppercase mb-1.5">Campos de Meta → campos de aquí</div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-[11px] text-[var(--ink-2)]">
+                <span>Importe gastado → <strong>Gasto</strong></span>
+                <span>Valor de conv. compra → <strong>Ingresos</strong></span>
+                <span>Compras → <strong>Compras</strong></span>
+                <span>Clics en enlace → <strong>Clics</strong></span>
+                <span>Impresiones → <strong>Impresiones</strong></span>
+                <span>Añadir al carrito → <strong>ATC</strong></span>
+                <span>Inicio del pago → <strong>Inicio de pago</strong></span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Disambiguation — why 3 sections */}
+      <details className="group">
+        <summary className="cursor-pointer list-none flex items-center gap-2 text-[12px] text-[var(--ink-3)] hover:text-[var(--ink-1)] transition-colors select-none">
+          <ChevronRight size={13} className="transition-transform group-open:rotate-90" />
+          ¿Para qué sirven entonces Campañas y Creativos?
+        </summary>
+        <div className="mt-2 ml-5 space-y-2">
+          {[
+            { icon: "📊", title: "Dashboard (aquí)", desc: "Metes los TOTALES del día una vez. La IA te dice qué hacer. Es lo único que necesitas hacer cada día." },
+            { icon: "📣", title: "Campañas (opcional)", desc: "Registra el rendimiento ACUMULADO de cada campaña por separado. Útil si tienes varias campañas y quieres ver cuál vale más. No hace falta actualizarlo a diario." },
+            { icon: "🎬", title: "Creativos (opcional)", desc: "Biblioteca de tus anuncios. Guarda hooks, ángulos y resultados para saber qué creativo funciona mejor. Actualiza cuando quieras, no cada día." },
+          ].map(item => (
+            <div key={item.title} className="flex items-start gap-2.5 p-3 bg-white border border-[var(--border)] rounded-xl">
+              <span className="text-[16px] leading-none mt-0.5">{item.icon}</span>
+              <div>
+                <div className="text-[12px] font-semibold text-[var(--ink-1)]">{item.title}</div>
+                <div className="text-[11px] text-[var(--ink-3)] leading-relaxed">{item.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
 
       {/* Product context */}
       {settings.productName && (
-        <div className="flex items-center justify-between p-3 bg-[var(--gold-soft)] border border-[rgba(200,169,106,0.2)] rounded-xl">
-          <div>
-            <div className="text-[9px] font-bold text-[var(--ink-4)] uppercase tracking-wider mb-0.5">Producto activo</div>
-            <div className="text-[13px] font-semibold text-[var(--ink-1)]">{settings.productName}</div>
+        <div className="flex items-center justify-between p-3 bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl">
+          <div className="text-[12px] text-[var(--ink-2)]">
+            Producto activo: <strong className="text-[var(--ink-1)]">{settings.productName}</strong>
           </div>
-          <div className="flex gap-4">
-            {settings.beRoas > 0 && (
-              <div className="text-right">
-                <div className="text-[9px] text-[var(--ink-4)]">BE ROAS</div>
-                <div className="font-mono font-bold text-[13px] text-[var(--gold-deep)]">{settings.beRoas}×</div>
-              </div>
-            )}
-            {settings.beCpa > 0 && (
-              <div className="text-right">
-                <div className="text-[9px] text-[var(--ink-4)]">BE CPA</div>
-                <div className="font-mono font-bold text-[13px] text-[var(--gold-deep)]">{eur(settings.beCpa)}</div>
-              </div>
-            )}
+          <div className="flex gap-4 text-[11px] text-[var(--ink-4)]">
+            {settings.beRoas > 0 && <span>BE ROAS <strong className="font-mono text-[var(--gold-deep)]">{settings.beRoas}×</strong></span>}
+            {settings.beCpa > 0 && <span>BE CPA <strong className="font-mono text-[var(--gold-deep)]">{eur(settings.beCpa)}</strong></span>}
           </div>
         </div>
       )}
-      <div className="bg-white border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-5">
-        <div>
-          <div className="text-[12px] font-semibold text-[var(--ink-3)] uppercase tracking-wider mb-3">💸 Inversión e ingresos</div>
+
+      {/* The actual form */}
+      <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+        {/* Row 1: the 2 most important */}
+        <div className="p-5 space-y-4">
+          <div className="text-[11px] font-bold text-[var(--ink-4)] uppercase tracking-widest">Lo más importante</div>
           <div className="grid grid-cols-2 gap-4">
-            <NumInput label="Gasto en ads" hint="Total en Meta hoy" value={spend} onChange={setSpend} suffix="€" />
-            <NumInput label="Ingresos" hint="Ventas atribuidas" value={revenue} onChange={setRevenue} suffix="€" />
+            <NumInput label="Gasto en ads" hint="Importe gastado hoy" value={spend} onChange={setSpend} suffix="€" />
+            <NumInput label="Ingresos" hint="Valor conv. de compra" value={revenue} onChange={setRevenue} suffix="€" />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <NumInput label="Compras" hint="Nº de pedidos" value={purchases} onChange={setPurchases} />
+            <NumInput label="Add to Cart" hint="Añadir al carrito" value={atc} onChange={setAtc} />
+            <NumInput label="Inicio de pago" hint="Checkout iniciado" value={checkouts} onChange={setCheckouts} />
           </div>
         </div>
-        <div className="border-t border-[var(--border)] pt-4">
-          <div className="text-[12px] font-semibold text-[var(--ink-3)] uppercase tracking-wider mb-3">📊 Tráfico</div>
+
+        {/* Row 2: traffic (secondary) */}
+        <div className="border-t border-[var(--border)] px-5 py-4 bg-[var(--bg-inset)]">
+          <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-3">Tráfico · opcional pero útil para el CTR</div>
           <div className="grid grid-cols-2 gap-4">
             <NumInput label="Impresiones" value={impressions} onChange={setImpressions} />
-            <NumInput label="Clics al link" value={clicks} onChange={setClicks} />
+            <NumInput label="Clics al enlace" value={clicks} onChange={setClicks} />
           </div>
         </div>
-        <div className="border-t border-[var(--border)] pt-4">
-          <div className="text-[12px] font-semibold text-[var(--ink-3)] uppercase tracking-wider mb-3">🛒 Funnel de conversión</div>
-          <div className="grid grid-cols-3 gap-4">
-            <NumInput label="Add to Cart" value={atc} onChange={setAtc} />
-            <NumInput label="Inicio de pago" value={checkouts} onChange={setCheckouts} />
-            <NumInput label="Compras" value={purchases} onChange={setPurchases} />
-          </div>
+
+        <div className="px-5 py-4 border-t border-[var(--border)]">
+          <button onClick={() => { if (n(spend) > 0) onSave({ spend: n(spend), revenue: n(revenue), clicks: n(clicks), impressions: n(impressions), atc: n(atc), checkouts: n(checkouts), purchases: n(purchases) }); }}
+            disabled={!n(spend)}
+            className="w-full py-3 rounded-xl bg-[var(--ink-1)] text-white font-semibold text-[14px] hover:bg-black transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+            <Brain size={16} /> Analizar y ver decisión de la IA
+          </button>
+          {!n(spend) && (
+            <div className="text-center text-[11px] text-[var(--ink-4)] mt-2">Mínimo necesario: el gasto de hoy</div>
+          )}
         </div>
-        <button onClick={() => { if (n(spend) > 0) onSave({ spend: n(spend), revenue: n(revenue), clicks: n(clicks), impressions: n(impressions), atc: n(atc), checkouts: n(checkouts), purchases: n(purchases) }); }}
-          disabled={!n(spend)}
-          className="w-full py-3 rounded-xl bg-[var(--ink-1)] text-white font-semibold text-[14px] hover:bg-black transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
-          <Brain size={16} /> Ver análisis IA
-        </button>
       </div>
     </div>
   );

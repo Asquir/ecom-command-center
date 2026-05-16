@@ -458,7 +458,7 @@ export function Campaigns() {
         <div>
           <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Meta Ads · {campaigns.length} campañas</div>
           <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Campañas activas</h1>
-          <p className="text-[13px] text-[var(--ink-3)] mt-1">Semáforo de decisión por campaña. Escalar activa el protocolo de 4 fases.</p>
+          <p className="text-[13px] text-[var(--ink-3)] mt-1">Rendimiento <strong>acumulado</strong> por campaña. Actualiza cuando quieras — no hace falta hacerlo a diario.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={exportCSV} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-1)] shadow-sm hover:bg-[var(--bg-inset)] flex items-center gap-1.5">
@@ -470,6 +470,15 @@ export function Campaigns() {
           <button onClick={() => setNewModal(true)} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)] flex items-center gap-1.5">
             <Plus size={12} /> Nueva
           </button>
+        </div>
+      </div>
+
+      {/* Context banner */}
+      <div className="flex items-start gap-3 p-3 bg-[var(--bg-inset)] border border-[var(--border)] rounded-xl text-[12px] text-[var(--ink-3)]">
+        <span className="text-[15px] leading-none mt-0.5">💡</span>
+        <div>
+          <strong className="text-[var(--ink-1)]">Aquí va el rendimiento acumulado de cada campaña</strong> — no los datos de hoy.
+          Los totales del día van en el <strong className="text-[var(--ink-1)]">Dashboard</strong>. Aquí puedes registrar cuánto gastaste en cada campaña desde que la lanzaste, para ver cuál vale más.
         </div>
       </div>
 
