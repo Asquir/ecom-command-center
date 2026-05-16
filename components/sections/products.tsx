@@ -1,14 +1,103 @@
 "use client";
 import { useState } from "react";
 import { useLocalStorage } from "@/lib/hooks";
-import { type Product, type ProductStatus, type Creative, type Campaign } from "@/lib/data";
+import { useSettings } from "@/lib/settings-context";
+import { type Product, type ProductStatus, type Creative, type Campaign, type CampaignStructure } from "@/lib/data";
 import { DecisionBadge, Badge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
-import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle, Package, AlertTriangle, BookOpen, Trash2, TrendingUp } from "lucide-react";
+import { ChevronRight, Copy, ExternalLink, Zap, ArrowLeft, Save, CheckCircle, Package, AlertTriangle, BookOpen, Trash2, TrendingUp, Calendar, Target } from "lucide-react";
+
+// ─── Testing phase helpers ─────────────────────────────────────────────
+type Phase = "launch" | "signals" | "validation" | "decision" | "scaling";
+const PHASE_INFO: Record<Phase, { label: string; color: string; bg: string }> = {
+  launch:     { label: "Lanzamiento",        color: "text-[var(--gold)]",      bg: "bg-[var(--ink-1)]"     },
+  signals:    { label: "Buscando señales",   color: "text-white",              bg: "bg-[#3a3a78]"          },
+  validation: { label: "Validación",         color: "text-white",              bg: "bg-[var(--warning)]"   },
+  decision:   { label: "Decisión",           color: "text-[var(--ink-1)]",     bg: "bg-[var(--gold)]"      },
+  scaling:    { label: "Escalado",           color: "text-white",              bg: "bg-[var(--success)]"   },
+};
+
+function getTestingDay(createdAt?: number): number {
+  if (!createdAt) return 0;
+  const diff = Date.now() - createdAt;
+  return Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24)) + 1);
+}
+
+function getPhase(day: number): Phase {
+  if (day <= 1) return "launch";
+  if (day <= 3) return "signals";
+  if (day <= 5) return "validation";
+  if (day <= 7) return "decision";
+  return "scaling";
+}
+
+// Phase-aware playbook — what to do TODAY based on testing day + campaign type
+function getDailyPlaybook(day: number, campaignType?: CampaignStructure): { title: string; actions: { priority: "now" | "today" | "week"; text: string }[] } {
+  const phase = getPhase(day);
+  const typeNote = campaignType === "ABO" ? "Como usas ABO, controla budget por ad set. Solo escala el ganador."
+                 : campaignType === "CBO" ? "Como usas CBO, deja que el algoritmo distribuya. Sube budget de campaña, no de ad sets."
+                 : campaignType === "SBO" || campaignType === "ASC" ? "Como usas Advantage+/SBO, da 7-14 días al algoritmo antes de intervenir."
+                 : "";
+
+  if (phase === "launch") {
+    return {
+      title: `Día ${day} · Lanzamiento`,
+      actions: [
+        { priority: "now",   text: "Verifica que el pixel envía View Content + ATC + Purchase en Test Events." },
+        { priority: "now",   text: "Comprueba que cada ad set entrega impresiones tras las primeras 2-3h." },
+        { priority: "today", text: "NO toques nada las primeras 24h. Meta necesita estabilidad para salir del aprendizaje." },
+        ...(typeNote ? [{ priority: "today" as const, text: typeNote }] : []),
+      ],
+    };
+  }
+  if (phase === "signals") {
+    return {
+      title: `Día ${day} · Buscando señales`,
+      actions: [
+        { priority: "now",   text: "Revisa CTR + hook rate por creativo. Pausa creativos con CTR <0.5% y 1000+ impresiones." },
+        { priority: "today", text: "Espera al menos 1.5× tu BE CPA gastado por ad set antes de juzgar." },
+        { priority: "today", text: "Aunque tengas 1-2 ventas, NO escales. Esperar a 3 días + 5 compras + 2 días rentables." },
+        ...(typeNote ? [{ priority: "today" as const, text: typeNote }] : []),
+      ],
+    };
+  }
+  if (phase === "validation") {
+    return {
+      title: `Día ${day} · Validación temprana`,
+      actions: [
+        { priority: "now",   text: "Identifica el creativo con mejor CTR + más compras. Pausa los demás." },
+        { priority: "today", text: "Crea 1-2 variaciones del creativo ganador (mismo hook, distinto B-roll/voz)." },
+        { priority: "today", text: "Si ROAS ≥ BE 2 días seguidos + 5 compras → preparar scale +20%. Verifica scale gates en Dashboard." },
+        ...(typeNote ? [{ priority: "today" as const, text: typeNote }] : []),
+        { priority: "week",  text: "NO cambies más de UNA variable a la vez (creativo, audiencia o presupuesto). Mantén trazabilidad." },
+      ],
+    };
+  }
+  if (phase === "decision") {
+    return {
+      title: `Día ${day} · Momento de decisión`,
+      actions: [
+        { priority: "now",   text: "Comprueba los 4 scale gates del Dashboard antes de cualquier escalado." },
+        { priority: "today", text: "Si rentable: +20% al ad set ganador. Si no: cambia 1 variable o ejecuta autopsia." },
+        ...(typeNote ? [{ priority: "today" as const, text: typeNote }] : []),
+        { priority: "week",  text: "Si validado, prepara 2-3 creativos nuevos para evitar fatiga durante el scaling." },
+      ],
+    };
+  }
+  return {
+    title: `Día ${day} · Escalado`,
+    actions: [
+      { priority: "now",   text: "Sube +20% cada 72h al ad set ganador. No te aceleres aunque vaya bien." },
+      { priority: "today", text: "Rota creativos cada 5-7 días para combatir la fatiga de audiencia." },
+      ...(typeNote ? [{ priority: "today" as const, text: typeNote }] : []),
+      { priority: "week",  text: "Con 100+ compras, abre LAL 1% de compradores (purchase event). Evita LAL de ATC." },
+    ],
+  };
+}
 
 interface Autopsy {
   productId: string;
@@ -51,19 +140,32 @@ function ProductThumb({ tone, label, w = 56, h = 72 }: { tone: string; label: st
   );
 }
 
-function ProductCard({ p, onOpen }: { p: Product; onOpen: () => void }) {
+function ProductCard({ p, isActive, onOpen }: { p: Product; isActive: boolean; onOpen: () => void }) {
   const s = STATUS_BADGE[p.status];
+  const day = getTestingDay(p.createdAt);
+  const phase = day > 0 ? getPhase(day) : null;
+  const phaseInfo = phase ? PHASE_INFO[phase] : null;
+  const isTestingActive = p.status === "testing" && day > 0;
+
   return (
-    <div onClick={onOpen} className="bg-white border border-[var(--border)] rounded-xl shadow-sm cursor-pointer hover:shadow-md transition-shadow flex flex-col">
+    <div onClick={onOpen} className={cx("bg-white border rounded-xl shadow-sm cursor-pointer hover:shadow-md transition-shadow flex flex-col", isActive ? "border-[var(--gold)] ring-2 ring-[rgba(200,169,106,0.2)]" : "border-[var(--border)]")}>
+      {/* Phase ribbon (only while testing) */}
+      {isTestingActive && phaseInfo && (
+        <div className={cx("flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider", phaseInfo.bg, phaseInfo.color)}>
+          <span>Día {day} · {phaseInfo.label}</span>
+          {p.campaignType && <span className="font-mono opacity-80">{p.campaignType}</span>}
+        </div>
+      )}
       <div className="flex gap-3.5 p-4">
         <ProductThumb tone={p.tone} label={p.name.split(" ")[0]} w={56} h={72} />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <Badge variant={s.variant}>{s.label}</Badge>
+            {isActive && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--gold)] text-[var(--ink-1)] uppercase tracking-wider">Activo</span>}
             <span className="text-[11px] text-[var(--ink-4)]">{p.country}</span>
           </div>
           <div className="font-semibold text-[14px] text-[var(--ink-1)] leading-snug mb-1">{p.name}</div>
-          <div className="text-[11px] text-[var(--ink-3)]">{p.niche} · inicio {p.started}</div>
+          <div className="text-[11px] text-[var(--ink-3)]">{p.niche}{p.started ? ` · inicio ${p.started}` : ""}</div>
         </div>
         <ScoreRing value={p.score} size={56} />
       </div>
@@ -78,10 +180,6 @@ function ProductCard({ p, onOpen }: { p: Product; onOpen: () => void }) {
             <div className={cx("font-mono font-semibold text-[13px]", ok === true ? "text-[var(--success)]" : ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]")}>{v}</div>
           </div>
         ))}
-      </div>
-      <div className="mx-3.5 mb-3.5 bg-[var(--bg-inset)] border border-dashed border-[var(--border-strong)] rounded-lg px-3 py-2">
-        <div className="text-[9px] font-semibold text-[var(--ink-4)] uppercase tracking-wide mb-0.5">Diagnóstico</div>
-        <div className="text-[12px] text-[var(--ink-2)]">{p.diagnosis}</div>
       </div>
     </div>
   );
@@ -192,11 +290,14 @@ function AutopsyModal({ product, onClose, onSave }: {
   );
 }
 
-function ProductDetail({ p: initialP, onBack, onStatusChange, onDelete }: {
+function ProductDetail({ p: initialP, onBack, onStatusChange, onDelete, onUpdate, isActive, onSetActive }: {
   p: Product;
   onBack: () => void;
   onStatusChange: (id: string, status: ProductStatus) => void;
   onDelete: (id: string) => void;
+  onUpdate: (p: Product) => void;
+  isActive: boolean;
+  onSetActive: () => void;
 }) {
   const { success, info } = useToast();
   const [p, setP] = useState(initialP);
@@ -211,6 +312,19 @@ function ProductDetail({ p: initialP, onBack, onStatusChange, onDelete }: {
   const [allCreatives] = useLocalStorage<Creative[]>("ecc-creatives", []);
   const productCampaigns = allCampaigns.filter(c => c.product === p.id);
   const productCreatives = allCreatives;
+
+  const day = getTestingDay(p.createdAt);
+  const phase = day > 0 ? getPhase(day) : null;
+  const phaseInfo = phase ? PHASE_INFO[phase] : null;
+  const isTestingActive = p.status === "testing" && day > 0;
+  const playbook = isTestingActive ? getDailyPlaybook(day, p.campaignType) : null;
+
+  const setCampaignType = (t: CampaignStructure) => {
+    const updated = { ...p, campaignType: t };
+    setP(updated);
+    onUpdate(updated);
+    success("Tipo de campaña actualizado", t);
+  };
   const s = STATUS_BADGE[p.status];
   const existingAutopsy = autopsies.find(a => a.productId === p.id);
 
@@ -292,13 +406,51 @@ function ProductDetail({ p: initialP, onBack, onStatusChange, onDelete }: {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => { info("Duplicar test", "Crea un nuevo producto basado en este configuración."); }} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><Copy size={13}/> Duplicar test</button>
+          {!isActive && (
+            <button onClick={onSetActive} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--gold)] text-[var(--ink-1)] hover:opacity-90"><Target size={13}/> Marcar como activo</button>
+          )}
           <button onClick={() => window.open("https://admin.shopify.com", "_blank")} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-inset)]"><ExternalLink size={13}/> Ver en Shopify</button>
-          <button onClick={() => { success("Recomendación aplicada", p.diagnosis); setTab("notas"); }} className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white hover:bg-black"><Zap size={13}/> Aplicar recomendación</button>
           <button onClick={() => { if (confirm(`¿Eliminar definitivamente "${p.name}"? Esta acción no se puede deshacer.`)) { onDelete(p.id); onBack(); } }}
             title="Eliminar producto" className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Trash2 size={13}/> Eliminar</button>
         </div>
       </div>
+
+      {/* Testing phase banner + playbook */}
+      {playbook && phaseInfo && (
+        <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+          <div className={cx("flex items-center justify-between px-5 py-2.5", phaseInfo.bg, phaseInfo.color)}>
+            <div className="flex items-center gap-2">
+              <Calendar size={13} />
+              <span className="text-[11px] font-bold uppercase tracking-widest">{playbook.title}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] opacity-80">Tipo:</span>
+              <select value={p.campaignType ?? ""} onChange={e => setCampaignType(e.target.value as CampaignStructure)}
+                className={cx("h-6 px-2 text-[10px] font-bold rounded border-0 outline-none font-mono cursor-pointer", phaseInfo.color, "bg-black/20")}>
+                <option value="">— elige tipo —</option>
+                <option value="ABO">ABO</option>
+                <option value="CBO">CBO</option>
+                <option value="SBO">SBO</option>
+                <option value="ASC">ASC / Advantage+</option>
+              </select>
+            </div>
+          </div>
+          <div className="p-5 space-y-2.5">
+            <div className="text-[11px] font-bold text-[var(--ink-4)] uppercase tracking-wider mb-2">Qué hacer hoy</div>
+            {playbook.actions.map((a, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <span className={cx("text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5",
+                  a.priority === "now"   ? "bg-[var(--danger)] text-white" :
+                  a.priority === "today" ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]" :
+                                            "bg-[var(--bg-inset)] text-[var(--ink-3)]")}>
+                  {a.priority === "now" ? "AHORA" : a.priority === "today" ? "HOY" : "SEMANA"}
+                </span>
+                <span className="text-[12px] text-[var(--ink-2)] leading-relaxed">{a.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-0.5 border-b border-[var(--border)] overflow-x-auto">
@@ -560,15 +712,18 @@ const STATUS_FILTERS = [
 ];
 
 function NewProductModal({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (p: Product) => void }) {
-  const [name, setName] = useState("");
-  const [niche, setNiche] = useState("");
-  const [country, setCountry] = useState("🇲🇽 MX");
-  const [price, setPrice] = useState("");
-  const [cogs, setCogs] = useState("");
+  const { settings } = useSettings();
+  const countryFromSettings = settings.country === "ES" ? "🇪🇸 ES" : settings.country === "US" ? "🇺🇸 US" : "🇲🇽 MX";
+  const [name, setName]         = useState(settings.productName || "");
+  const [niche, setNiche]       = useState("");
+  const [country, setCountry]   = useState(countryFromSettings);
+  const [price, setPrice]       = useState(settings.aov > 0 ? String(settings.aov) : "");
+  const [cogs, setCogs]         = useState(settings.productCost > 0 ? String(settings.productCost) : "");
   const [shipping, setShipping] = useState("0");
   const [supplier, setSupplier] = useState("");
   const [shipTime, setShipTime] = useState("9–14 días");
-  const [status, setStatus] = useState<ProductStatus>("research");
+  const [status, setStatus]     = useState<ProductStatus>("testing");
+  const [campaignType, setCampaignType] = useState<CampaignStructure>("ABO");
 
   const p = parseFloat(price) || 0;
   const c = parseFloat(cogs) || 0;
@@ -579,10 +734,13 @@ function NewProductModal({ open, onClose, onAdd }: { open: boolean; onClose: () 
 
   const add = () => {
     if (!name.trim() || !p) return;
+    const now = Date.now();
     const product: Product = {
-      id: `p${Date.now()}`, name: name.trim(), niche: niche.trim() || "Sin nicho",
+      id: `p${now}`, name: name.trim(), niche: niche.trim() || "Sin nicho",
       country, status, statusLabel: STATUS_BADGE[status].label,
       started: new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long" }),
+      createdAt: now,
+      campaignType,
       spend: 0, sales: 0, revenue: 0, profit: 0,
       roas: 0, cpa: 0, breCpa: beCpa, breRoas: beRoas,
       margin: +margin.toFixed(1), cogs: c, shippingCost: s, appsCost: 0,
@@ -591,7 +749,6 @@ function NewProductModal({ open, onClose, onAdd }: { open: boolean; onClose: () 
       creativesCount: 0, campaignsCount: 0, tone: "neutral",
     };
     onAdd(product);
-    setName(""); setNiche(""); setPrice(""); setCogs(""); setShipping("0"); setSupplier(""); setStatus("research");
     onClose();
   };
 
@@ -656,14 +813,26 @@ function NewProductModal({ open, onClose, onAdd }: { open: boolean; onClose: () 
                 className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)]" />
             </div>
           </div>
-          <div>
-            <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Estado inicial</label>
-            <select value={status} onChange={e => setStatus(e.target.value as ProductStatus)}
-              className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] appearance-none bg-white">
-              <option value="research">En investigación</option>
-              <option value="webprep">Preparando web</option>
-              <option value="testing">En testing</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Estado inicial</label>
+              <select value={status} onChange={e => setStatus(e.target.value as ProductStatus)}
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] appearance-none bg-white">
+                <option value="research">En investigación</option>
+                <option value="webprep">Preparando web</option>
+                <option value="testing">En testing (empieza Día 1)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[12px] font-medium text-[var(--ink-2)] block mb-1.5">Estructura de campaña</label>
+              <select value={campaignType} onChange={e => setCampaignType(e.target.value as CampaignStructure)}
+                className="w-full h-9 px-3 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] appearance-none bg-white">
+                <option value="ABO">ABO — budget por ad set</option>
+                <option value="CBO">CBO — budget por campaña</option>
+                <option value="SBO">SBO — Sales Best</option>
+                <option value="ASC">ASC / Advantage+</option>
+              </select>
+            </div>
           </div>
         </div>
         <div className="flex gap-2 pt-2">
@@ -682,6 +851,7 @@ function NewProductModal({ open, onClose, onAdd }: { open: boolean; onClose: () 
 
 export function Products() {
   const { success, warning } = useToast();
+  const { settings, setSettings } = useSettings();
   const [products, setProducts] = useLocalStorage<Product[]>("ecc-products", []);
   const [view, setView] = useState<"cards" | "table">("cards");
   const [filter, setFilter] = useState("all");
@@ -697,15 +867,48 @@ export function Products() {
     warning("Producto eliminado");
   };
 
+  const handleUpdate = (updated: Product) => {
+    setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+  };
+
   const addProduct = (p: Product) => {
     setProducts(prev => [...prev, p]);
+    // If user doesn't have an active product yet, make this the active one
+    if (!settings.productName) {
+      setSettings(prev => ({ ...prev, productName: p.name, aov: p.cogs > 0 ? +(p.breCpa + p.cogs + p.shippingCost).toFixed(2) : prev.aov, productCost: p.cogs + p.shippingCost, margin: p.margin, beCpa: p.breCpa, beRoas: p.breRoas }));
+    }
     success("Producto añadido", p.name);
   };
+
+  const setAsActive = (p: Product) => {
+    setSettings(prev => ({
+      ...prev,
+      productName: p.name,
+      aov: +(p.breCpa + p.cogs + p.shippingCost).toFixed(2),
+      productCost: p.cogs + p.shippingCost,
+      margin: p.margin,
+      beCpa: p.breCpa,
+      beRoas: p.breRoas,
+    }));
+    success("Producto activado", `${p.name} es ahora el producto activo del Dashboard`);
+  };
+
+  const isActiveProduct = (p: Product) => settings.productName === p.name;
 
   const filtered = products.filter(p => filter === "all" || p.status === filter);
   const selected = products.find(p => p.id === selectedId);
 
-  if (selected) return <ProductDetail p={selected} onBack={() => setSelectedId(null)} onStatusChange={handleStatusChange} onDelete={handleDelete} />;
+  if (selected) return (
+    <ProductDetail
+      p={selected}
+      onBack={() => setSelectedId(null)}
+      onStatusChange={handleStatusChange}
+      onDelete={handleDelete}
+      onUpdate={handleUpdate}
+      isActive={isActiveProduct(selected)}
+      onSetActive={() => setAsActive(selected)}
+    />
+  );
 
   if (products.length === 0) {
     return (
@@ -768,7 +971,7 @@ export function Products() {
 
       {view === "cards" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(p => <ProductCard key={p.id} p={p} onOpen={() => setSelectedId(p.id)} />)}
+          {filtered.map(p => <ProductCard key={p.id} p={p} isActive={isActiveProduct(p)} onOpen={() => setSelectedId(p.id)} />)}
         </div>
       ) : (
         <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">

@@ -89,17 +89,34 @@ function SignalRow({ signal }: { signal: AIAnalysis["signals"][0] }) {
 function AIPanel({ analysis }: { analysis: AIAnalysis }) {
   const [expanded, setExpanded] = useState(true);
   const decisionColors = {
-    scale: "text-[var(--success)] bg-[var(--success-soft)] border-[rgba(34,197,94,0.2)]",
-    watch: "text-[var(--gold-deep)] bg-[var(--gold-soft)] border-[rgba(200,169,106,0.3)]",
+    scale:    "text-[var(--success)] bg-[var(--success-soft)] border-[rgba(34,197,94,0.2)]",
+    watch:    "text-[var(--gold-deep)] bg-[var(--gold-soft)] border-[rgba(200,169,106,0.3)]",
     optimize: "text-[var(--warning)] bg-[var(--warning-soft)] border-[rgba(245,158,11,0.2)]",
-    kill: "text-[var(--danger)] bg-[var(--danger-soft)] border-[rgba(239,68,68,0.2)]",
+    kill:     "text-[var(--danger)] bg-[var(--danger-soft)] border-[rgba(239,68,68,0.2)]",
+    wait:     "text-[var(--ink-3)] bg-[var(--bg-inset)] border-[var(--border)]",
   };
-  const decisionLabels = { scale: "ESCALAR", watch: "VIGILAR", optimize: "OPTIMIZAR", kill: "REVISAR" };
+  const decisionLabels: Record<string, string> = { scale: "ESCALAR", watch: "VIGILAR", optimize: "OPTIMIZAR", kill: "PAUSAR", wait: "ESPERAR" };
   const priorityColors = { now: "bg-[var(--danger)] text-white", today: "bg-[var(--gold-soft)] text-[var(--gold-deep)]", week: "bg-[var(--bg-inset)] text-[var(--ink-3)]" };
   const priorityLabels = { now: "AHORA", today: "HOY", week: "SEMANA" };
 
+  const phaseColors: Record<string, string> = {
+    launch:     "bg-[var(--ink-1)] text-[var(--gold)]",
+    signals:    "bg-[#3a3a78] text-white",
+    validation: "bg-[var(--warning)] text-white",
+    decision:   "bg-[var(--gold)] text-[var(--ink-1)]",
+    scaling:    "bg-[var(--success)] text-white",
+  };
+
   return (
     <div className="bg-white border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+      {/* Phase ribbon */}
+      <div className={`flex items-center justify-between px-5 py-2 ${phaseColors[analysis.phase] ?? phaseColors.launch}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-bold uppercase tracking-widest opacity-80">Día {analysis.testingDay} · {analysis.phaseLabel}</span>
+        </div>
+        <span className="text-[9px] font-mono opacity-70">Confianza {analysis.confidence}</span>
+      </div>
+
       <button onClick={() => setExpanded(e => !e)}
         className="w-full flex items-center justify-between p-5 text-left hover:bg-[var(--bg-inset)] transition-colors">
         <div className="flex items-center gap-3">
@@ -107,12 +124,11 @@ function AIPanel({ analysis }: { analysis: AIAnalysis }) {
             <Brain size={16} className="text-[var(--gold)]" />
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-0.5">
+            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className="text-[13px] font-bold text-[var(--ink-1)]">Análisis IA</span>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${decisionColors[analysis.decision]}`}>
                 {decisionLabels[analysis.decision]}
               </span>
-              <span className="text-[10px] text-[var(--ink-4)]">Confianza {analysis.confidence} · {analysis.daysWithData}d de datos</span>
             </div>
             <div className="text-[12px] text-[var(--ink-3)]">{analysis.headline}</div>
           </div>
@@ -130,9 +146,45 @@ function AIPanel({ analysis }: { analysis: AIAnalysis }) {
 
       {expanded && (
         <div className="px-5 pb-5 space-y-4 border-t border-[var(--border)]">
-          <div className="pt-4">
+          {/* WHY message */}
+          <div className="pt-4 bg-[var(--bg-inset)] -mx-5 px-5 py-4 -mb-1">
+            <div className="flex items-start gap-2">
+              <div className="text-[14px] mt-0.5">💡</div>
+              <div>
+                <div className="text-[10px] font-bold text-[var(--ink-4)] uppercase tracking-wider mb-1">Por qué esta decisión</div>
+                <div className="text-[13px] text-[var(--ink-1)] leading-relaxed">{analysis.whyMessage}</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
             <ScoreBar score={analysis.score} decision={analysis.decision} />
           </div>
+
+          {/* SCALE GATES */}
+          {analysis.scaleGates.length > 0 && (
+            <div>
+              <div className="text-[11px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-2">
+                Criterios para escalar {analysis.scaleGates.every(g => g.passed) ? "✓" : `· ${analysis.scaleGates.filter(g => g.passed).length} de ${analysis.scaleGates.length}`}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {analysis.scaleGates.map(g => (
+                  <div key={g.label} className={`p-2.5 rounded-lg border ${g.passed ? "border-[rgba(34,197,94,0.2)] bg-[var(--success-soft)]" : "border-[var(--border)] bg-white"}`}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      {g.passed
+                        ? <CheckCircle size={12} className="text-[var(--success)]" />
+                        : <XCircle size={12} className="text-[var(--ink-4)]" />}
+                      <span className="text-[11px] font-semibold text-[var(--ink-1)]">{g.label}</span>
+                    </div>
+                    <div className="text-[10px] text-[var(--ink-3)] leading-tight">
+                      <span className="font-mono">{g.current}</span>
+                      <span className="text-[var(--ink-5)]"> · necesario: {g.required}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {analysis.signals.length > 0 && (
             <div className="space-y-2">

@@ -9,7 +9,7 @@ import { ScoreRing } from "@/components/ui/score-ring";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { eur, pct, cx } from "@/lib/utils";
-import { Copy, Pause, Play, Zap, SortAsc, Plus, X, CheckCircle, AlertTriangle, Flame, Trash2 } from "lucide-react";
+import { Copy, Pause, Play, Zap, SortAsc, Plus, X, CheckCircle, AlertTriangle, Flame, Trash2, Edit3 } from "lucide-react";
 
 function letterGrade(score: number): { grade: "A" | "B" | "C" | "D"; color: string; bg: string } {
   if (score >= 80) return { grade: "A", color: "text-[var(--success)]", bg: "bg-[var(--success-soft)]" };
@@ -49,7 +49,7 @@ function MetricPill({ label, value, good }: { label: string; value: string; good
   );
 }
 
-function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariation, onDelete }: {
+function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariation, onDelete, onMetrics }: {
   c: Creative & { paused?: boolean };
   ctrTarget: number;
   hookTarget: number;
@@ -57,6 +57,7 @@ function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariat
   onDuplicate: () => void;
   onVariation: () => void;
   onDelete: () => void;
+  onMetrics: () => void;
 }) {
   const isPaused = c.paused || c.status === "Pausado";
   const fatigue = fatigueScore(c.hookRate, c.holdRate, c.ctr, hookTarget, ctrTarget);
@@ -113,17 +114,21 @@ function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariat
       </div>
 
       <div className="flex border-t border-[var(--border)]">
-        <button onClick={onDuplicate} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[var(--ink-3)] hover:bg-[var(--bg-inset)] hover:text-[var(--ink-1)] transition-colors">
-          <Copy size={12} /> Duplicar
+        <button onClick={onMetrics} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[var(--gold-deep)] bg-[var(--gold-soft)] hover:opacity-90 transition-colors">
+          <Edit3 size={12} /> Datos
         </button>
         <button onClick={onVariation} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium text-[var(--ink-3)] hover:bg-[var(--bg-inset)] hover:text-[var(--ink-1)] transition-colors border-l border-[var(--border)]">
-          <Zap size={12} /> Variaciones
+          <Zap size={12} /> Variar
+        </button>
+        <button onClick={onDuplicate} title="Duplicar creativo"
+          className="px-2.5 flex items-center justify-center text-[11px] text-[var(--ink-4)] hover:text-[var(--ink-1)] hover:bg-[var(--bg-inset)] transition-colors border-l border-[var(--border)]">
+          <Copy size={12} />
         </button>
         <button onClick={onPause} className={cx(
-          "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-medium transition-colors border-l border-[var(--border)]",
+          "px-2.5 flex items-center justify-center text-[11px] font-medium transition-colors border-l border-[var(--border)]",
           isPaused ? "text-[var(--success)] hover:bg-[var(--success-soft)]" : "text-[var(--danger)] hover:bg-[var(--danger-soft)]"
         )}>
-          {isPaused ? <><Play size={12} /> Activar</> : <><Pause size={12} /> Pausar</>}
+          {isPaused ? <Play size={12} /> : <Pause size={12} />}
         </button>
         <button onClick={onDelete} title="Eliminar creativo"
           className="px-2.5 flex items-center justify-center text-[11px] text-[var(--ink-4)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors border-l border-[var(--border)]">
@@ -136,6 +141,156 @@ function CreativeCard({ c, ctrTarget, hookTarget, onPause, onDuplicate, onVariat
 
 type CreativeState = Creative & { paused?: boolean };
 
+interface CMFields {
+  spend: string; revenue: string; impressions: string; clicks: string;
+  hookViews: string; holdViews: string; atc: string; purchases: string;
+}
+
+function CreativeMetricsModal({ creative, ctrTarget, hookTarget, beRoas, beCpa, onClose, onSave }: {
+  creative: CreativeState; ctrTarget: number; hookTarget: number; beRoas: number; beCpa: number;
+  onClose: () => void;
+  onSave: (data: Partial<CreativeState>) => void;
+}) {
+  const [f, setF] = useState<CMFields>({
+    spend:       creative.spend > 0       ? String(creative.spend) : "",
+    revenue:     creative.roas > 0 && creative.spend > 0 ? String((creative.roas * creative.spend).toFixed(2)) : "",
+    impressions: "",
+    clicks:      "",
+    hookViews:   "",
+    holdViews:   "",
+    atc:         creative.atc > 0       ? String(creative.atc) : "",
+    purchases:   creative.purchases > 0 ? String(creative.purchases) : "",
+  });
+  const upd = (k: keyof CMFields) => (v: string) => setF(p => ({ ...p, [k]: v }));
+  const n = (v: string) => parseFloat(v) || 0;
+
+  const spend       = n(f.spend);
+  const revenue     = n(f.revenue);
+  const impressions = n(f.impressions);
+  const clicks      = n(f.clicks);
+  const hookViews   = n(f.hookViews);
+  const holdViews   = n(f.holdViews);
+  const atc         = n(f.atc);
+  const purchases   = n(f.purchases);
+
+  const ctr      = impressions > 0 ? (clicks / impressions) * 100        : 0;
+  const cpc      = clicks > 0      ? spend / clicks                       : 0;
+  const cpm      = impressions > 0 ? (spend / impressions) * 1000         : 0;
+  const hookRate = impressions > 0 ? (hookViews / impressions) * 100      : 0;
+  const holdRate = hookViews > 0   ? (holdViews / hookViews) * 100        : 0;
+  const roas     = spend > 0       ? revenue / spend                      : 0;
+  const cpa      = purchases > 0   ? spend / purchases                    : 0;
+
+  // Score: weighted sum of how each metric compares to target/BE
+  function computeScore(): number {
+    let score = 0;
+    if (impressions > 0) {
+      const ctrScore = Math.min(30, (ctr / ctrTarget) * 30);
+      score += isFinite(ctrScore) ? ctrScore : 0;
+      const hookScore = Math.min(25, (hookRate / hookTarget) * 25);
+      score += isFinite(hookScore) ? hookScore : 0;
+    }
+    if (hookViews > 0) {
+      const holdScore = Math.min(20, (holdRate / 30) * 20);
+      score += isFinite(holdScore) ? holdScore : 0;
+    }
+    if (spend > 0 && beRoas > 0) {
+      const roasScore = Math.min(25, (roas / beRoas) * 25);
+      score += isFinite(roasScore) ? roasScore : 0;
+    }
+    return Math.round(Math.max(0, Math.min(100, score)));
+  }
+
+  const score = spend > 0 ? computeScore() : 0;
+  const decision: DecisionKind =
+    spend === 0 ? "data" :
+    score >= 80 ? "scale" :
+    score >= 65 ? "watch" :
+    score >= 40 ? "data" : "kill";
+
+  const inputCls = "w-full h-9 px-2.5 text-[13px] font-mono outline-none bg-white";
+  const decisionColor = { scale: "text-[var(--success)]", kill: "text-[var(--danger)]", watch: "text-[var(--gold-deep)]", data: "text-[var(--ink-3)]", paused: "text-[var(--ink-4)]" };
+
+  const fields: { k: keyof CMFields; label: string; suffix: string; hint?: string }[] = [
+    { k: "spend",       label: "Gasto",         suffix: "€" },
+    { k: "revenue",     label: "Ingresos",      suffix: "€" },
+    { k: "impressions", label: "Impresiones",   suffix: "" },
+    { k: "clicks",      label: "Clics al link", suffix: "" },
+    { k: "hookViews",   label: "Hook (3s)",     suffix: "", hint: "Personas que vieron 3 seg" },
+    { k: "holdViews",   label: "Hold (15s)",    suffix: "", hint: "Personas que vieron 15 seg" },
+    { k: "atc",         label: "Add to Cart",   suffix: "" },
+    { k: "purchases",   label: "Compras",       suffix: "" },
+  ];
+
+  return (
+    <Modal open onClose={onClose} title={`Métricas — ${creative.name}`}>
+      <div className="space-y-4">
+        <div className="text-[11px] text-[var(--ink-3)] bg-[var(--bg-inset)] rounded-lg px-3 py-2 leading-relaxed">
+          Copia los datos de este creativo desde Meta Ads Manager. El score y la decisión se recalcularán automáticamente.
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {fields.map(({ k, label, suffix, hint }) => (
+            <div key={k}>
+              <label className="text-[11px] font-semibold text-[var(--ink-3)] block mb-1">
+                {label}
+                {hint && <span className="font-normal text-[var(--ink-5)] ml-1">· {hint}</span>}
+              </label>
+              <div className="flex items-center border border-[var(--border)] rounded-lg overflow-hidden focus-within:border-[var(--gold)]">
+                <input value={f[k]} onChange={e => upd(k)(e.target.value)} type="number" min="0" step="0.01" className={inputCls} />
+                {suffix && <span className="px-2 text-[11px] text-[var(--ink-4)] bg-[var(--bg-inset)] border-l border-[var(--border)] h-9 flex items-center">{suffix}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {spend > 0 && (
+          <div className="space-y-2">
+            <div className="text-[10px] font-bold text-[var(--ink-4)] uppercase tracking-widest">Calculado automáticamente</div>
+            <div className="grid grid-cols-4 gap-2 p-3 bg-[var(--bg-inset)] rounded-xl">
+              {[
+                { label: "CTR",  value: `${ctr.toFixed(2)}%`,  ok: ctr >= ctrTarget },
+                { label: "CPC",  value: `${cpc.toFixed(2)}€`,  ok: cpc <= 0.6 },
+                { label: "Hook", value: `${hookRate.toFixed(0)}%`, ok: hookRate >= hookTarget },
+                { label: "Hold", value: `${holdRate.toFixed(0)}%`, ok: holdRate >= 30 },
+                { label: "ROAS", value: `${roas.toFixed(2)}×`, ok: beRoas > 0 ? roas >= beRoas : null },
+                { label: "CPA",  value: purchases > 0 ? `${cpa.toFixed(2)}€` : "—", ok: beCpa > 0 && cpa > 0 ? cpa <= beCpa : null },
+                { label: "Score", value: String(score) },
+                { label: "Decisión", value: decision.toUpperCase(), className: decisionColor[decision] },
+              ].map((m: { label: string; value: string; ok?: boolean | null; className?: string }) => (
+                <div key={m.label}>
+                  <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">{m.label}</div>
+                  <div className={cx("font-mono font-bold text-[12px]",
+                    m.className ?? (m.ok === true ? "text-[var(--success)]" : m.ok === false ? "text-[var(--danger)]" : "text-[var(--ink-1)]"))}>
+                    {m.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={() => {
+            onSave({
+              spend, ctr, cpc, cpm, hookRate, holdRate,
+              atc, ic: 0, purchases, roas, score,
+              cpa: cpa > 0 ? cpa : null,
+              decision,
+              diag: spend > 0
+                ? `CTR ${ctr.toFixed(2)}% · Hook ${hookRate.toFixed(0)}% · ROAS ${roas.toFixed(2)}× · Score ${score}`
+                : creative.diag,
+            });
+          }} disabled={!spend}
+            className="flex-1 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black disabled:opacity-40">
+            Guardar métricas
+          </button>
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--ink-3)] text-[13px] hover:bg-[var(--bg-inset)]">Cancelar</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function Creatives() {
   const { settings } = useSettings();
   const { success, warning, info } = useToast();
@@ -143,11 +298,18 @@ export function Creatives() {
   const [sortBy, setSortBy] = useState<"score" | "ctr" | "spend">("score");
   const [filterAngle, setFilterAngle] = useState<string>("all");
   const [variationModal, setVariationModal] = useState<CreativeState | null>(null);
+  const [metricsModal, setMetricsModal] = useState<string | null>(null);
   const [addModal, setAddModal] = useState(false);
   const [view, setView] = useState<"cards" | "ranking">("cards");
   const [newHook, setNewHook] = useState("");
   const [newAngle, setNewAngle] = useState("");
   const [newVoice, setNewVoice] = useState("Chica");
+
+  const saveCreativeMetrics = (id: string, data: Partial<CreativeState>) => {
+    setCreatives(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+    success("Métricas actualizadas", data.roas != null ? `ROAS ${data.roas.toFixed(2)}× · Score ${data.score ?? "—"}` : "");
+    setMetricsModal(null);
+  };
 
   const ctrTarget = settings.ctrTarget || 2;
   const hookTarget = settings.hookTarget || 35;
@@ -429,10 +591,28 @@ export function Creatives() {
               onDuplicate={() => handleDuplicate(c)}
               onVariation={() => { setVariationModal(c); setNewAngle(c.angle); }}
               onDelete={() => handleDelete(c)}
+              onMetrics={() => setMetricsModal(c.id)}
             />
           ))}
         </div>
       )}
+
+      {/* Metrics modal */}
+      {metricsModal && (() => {
+        const c = creatives.find(x => x.id === metricsModal);
+        if (!c) return null;
+        return (
+          <CreativeMetricsModal
+            creative={c}
+            ctrTarget={ctrTarget}
+            hookTarget={hookTarget}
+            beRoas={settings.beRoas || 0}
+            beCpa={settings.beCpa || 0}
+            onClose={() => setMetricsModal(null)}
+            onSave={data => saveCreativeMetrics(c.id, data)}
+          />
+        );
+      })()}
 
       {/* Variation modal */}
       <Modal open={!!variationModal} onClose={() => setVariationModal(null)} title={`Nueva variación de "${variationModal?.name}"`}>

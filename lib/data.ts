@@ -249,6 +249,8 @@ export const SCALE_RULES = [
 ];
 
 // ===================== PRODUCTS =====================
+export type CampaignStructure = "ABO" | "CBO" | "SBO" | "ASC";
+
 export interface Product {
   id: string;
   name: string;
@@ -257,6 +259,8 @@ export interface Product {
   status: ProductStatus;
   statusLabel: string;
   started: string;
+  createdAt?: number;
+  campaignType?: CampaignStructure;
   spend: number;
   sales: number;
   revenue: number;
