@@ -11,7 +11,7 @@ import { type TgCfg, DEFAULT_TG_CFG } from "@/lib/integrations/telegram";
 import { syncMetaToday, type MetaCfg, DEFAULT_META_CFG } from "@/lib/integrations/meta";
 import {
   Zap, AlertTriangle, Clock, Edit3, TrendingUp, TrendingDown,
-  BarChart2, CheckCircle, XCircle, Brain, ChevronRight, RefreshCw, Wifi
+  BarChart2, CheckCircle, XCircle, Brain, ChevronRight, RefreshCw, Wifi, DollarSign
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -68,6 +68,145 @@ function ScoreBar({ score, decision }: { score: number; decision: string }) {
   );
 }
 
+const SCALE_PHASES = [
+  {
+    day: "D+1",
+    title: "Primer movimiento",
+    color: "border-[rgba(34,197,94,0.3)] bg-[var(--success-soft)]",
+    badge: "bg-[var(--success)] text-white",
+    actions: [
+      "Identifica los 2 adsets con mejor ROAS. Aumenta su presupuesto diario un +20%.",
+      "NO toques los adsets perdedores todavía.",
+      "Anota el nuevo spend diario total como referencia.",
+    ],
+  },
+  {
+    day: "D+2–3",
+    title: "Confirmación",
+    color: "border-[rgba(200,169,106,0.3)] bg-[var(--gold-soft)]",
+    badge: "bg-[var(--gold)] text-[var(--ink-1)]",
+    actions: [
+      "Si ROAS se mantiene ≥ BE × 1.2 → sube otro +20% el presupuesto.",
+      "Si ROAS cae entre BE y BE × 1.2 → mantén sin tocar 24h más.",
+      "Si ROAS cae por debajo de BE → revierte el aumento y vuelve al presupuesto original.",
+    ],
+  },
+  {
+    day: "D+4–7",
+    title: "Expansión controlada",
+    color: "border-[rgba(59,130,246,0.2)] bg-[rgba(59,130,246,0.05)]",
+    badge: "bg-[rgba(59,130,246,0.8)] text-white",
+    actions: [
+      "Si sigues rentable: duplica el adset ganador en un nuevo adset con mismo creativo.",
+      "Testea 1 nueva audiencia lookalike (1-3%) del mejor adset.",
+      "Empieza a preparar variaciones del creativo ganador (hook diferente, mismo ángulo).",
+    ],
+  },
+  {
+    day: "D+8+",
+    title: "Escalado CBO",
+    color: "border-[var(--border)] bg-white",
+    badge: "bg-[var(--ink-1)] text-white",
+    actions: [
+      "Consolida los adsets ganadores en una campaña CBO si no lo tienes ya.",
+      "Presupuesto total = spend diario × 1.5. CBO lo distribuye automáticamente.",
+      "Apaga los adsets que llevan 3+ días por debajo de BE. Sin piedad.",
+    ],
+  },
+];
+
+function ScaleProtocolModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="bg-[var(--success)] text-white px-5 py-4 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-0.5">Protocolo de escalado</div>
+            <div className="text-[15px] font-bold">Plan de acción — ESCALAR</div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center">
+            <XCircle size={16} />
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="text-[12px] text-[var(--ink-3)] bg-[var(--success-soft)] border border-[rgba(34,197,94,0.2)] rounded-xl p-3 leading-relaxed">
+            ✅ Todos los criterios de escalado están cumplidos. Sigue este protocolo de 4 fases para escalar sin quemar la cuenta.
+          </div>
+          {SCALE_PHASES.map(phase => (
+            <div key={phase.day} className={`border rounded-xl p-4 ${phase.color}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${phase.badge}`}>{phase.day}</span>
+                <span className="text-[13px] font-semibold text-[var(--ink-1)]">{phase.title}</span>
+              </div>
+              <ul className="space-y-1.5">
+                {phase.actions.map((a, i) => (
+                  <li key={i} className="flex gap-2 text-[12px] text-[var(--ink-2)] leading-relaxed">
+                    <span className="text-[var(--ink-4)] flex-shrink-0 mt-0.5">·</span>
+                    {a}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <div className="text-[11px] text-[var(--ink-4)] text-center pt-1">
+            Regla de oro: nunca más del +20% de aumento en 24h. El algoritmo necesita tiempo para re-aprender.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BudgetPacing({ allMetrics, monthlyBudget }: { allMetrics: DailyRecord; monthlyBudget: number }) {
+  if (monthlyBudget <= 0) return null;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const prefix = `${year}-${month}-`;
+  const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+  const dayOfMonth = now.getDate();
+  const daysLeft = daysInMonth - dayOfMonth;
+  const monthSpend = Object.entries(allMetrics)
+    .filter(([k]) => k.startsWith(prefix))
+    .reduce((s, [, v]) => s + v.spend, 0);
+  const dailyIdeal = monthlyBudget / daysInMonth;
+  const projectedSpend = dayOfMonth > 0 ? (monthSpend / dayOfMonth) * daysInMonth : 0;
+  const pct = Math.min(100, (monthSpend / monthlyBudget) * 100);
+  const pacing = monthSpend / (dailyIdeal * dayOfMonth);
+  const overBudget = monthSpend > monthlyBudget;
+  const overPacing = pacing > 1.15;
+  const underPacing = pacing < 0.85;
+  const color = overBudget ? "bg-[var(--danger)]" : overPacing ? "bg-[var(--warning)]" : "bg-[var(--success)]";
+  const status = overBudget ? "Presupuesto agotado" : overPacing ? "Gastando demasiado rápido" : underPacing ? "Por debajo del ritmo" : "En ritmo";
+  const statusColor = overBudget ? "text-[var(--danger)]" : overPacing ? "text-[var(--warning)]" : underPacing ? "text-[var(--info)]" : "text-[var(--success)]";
+
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-xl shadow-sm p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[12px] font-semibold text-[var(--ink-2)]">Pacing del presupuesto mensual</div>
+        <span className={`text-[10px] font-bold ${statusColor}`}>{status}</span>
+      </div>
+      <div className="h-2.5 bg-[var(--bg-inset)] rounded-full overflow-hidden mb-3">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="grid grid-cols-4 gap-3 text-center">
+        {[
+          { label: "Gastado", value: `€${monthSpend.toFixed(0)}`, sub: `de €${monthlyBudget}` },
+          { label: "Restante", value: `€${Math.max(0, monthlyBudget - monthSpend).toFixed(0)}`, sub: `${daysLeft}d restantes` },
+          { label: "Ritmo diario", value: `€${(monthSpend / (dayOfMonth || 1)).toFixed(0)}`, sub: `ideal €${dailyIdeal.toFixed(0)}/d` },
+          { label: "Proyección", value: `€${projectedSpend.toFixed(0)}`, sub: `al fin de mes`, ok: projectedSpend <= monthlyBudget },
+        ].map(s => (
+          <div key={s.label}>
+            <div className="text-[9px] font-semibold text-[var(--ink-4)] uppercase tracking-wider mb-0.5">{s.label}</div>
+            <div className={`font-mono font-bold text-[13px] ${"ok" in s && s.ok === false ? "text-[var(--danger)]" : "ok" in s && s.ok === true ? "text-[var(--success)]" : "text-[var(--ink-1)]"}`}>{s.value}</div>
+            <div className="text-[9px] text-[var(--ink-4)]">{s.sub}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SignalRow({ signal }: { signal: AIAnalysis["signals"][0] }) {
   const icon = signal.status === "green" ? <CheckCircle size={13} className="text-[var(--success)] flex-shrink-0" />
              : signal.status === "red" ? <XCircle size={13} className="text-[var(--danger)] flex-shrink-0" />
@@ -91,6 +230,8 @@ function SignalRow({ signal }: { signal: AIAnalysis["signals"][0] }) {
 
 function AIPanel({ analysis }: { analysis: AIAnalysis }) {
   const [expanded, setExpanded] = useState(true);
+  const [showProtocol, setShowProtocol] = useState(false);
+  const allGatesPass = analysis.scaleGates.length > 0 && analysis.scaleGates.every(g => g.passed);
   const decisionColors = {
     scale:    "text-[var(--success)] bg-[var(--success-soft)] border-[rgba(34,197,94,0.2)]",
     watch:    "text-[var(--gold-deep)] bg-[var(--gold-soft)] border-[rgba(200,169,106,0.3)]",
@@ -189,6 +330,17 @@ function AIPanel({ analysis }: { analysis: AIAnalysis }) {
             </div>
           )}
 
+          {/* Scale protocol CTA */}
+          {allGatesPass && analysis.decision === "scale" && (
+            <button onClick={() => setShowProtocol(true)}
+              className="w-full flex items-center justify-between p-3.5 rounded-xl bg-[var(--success)] text-white font-semibold text-[13px] hover:opacity-90 transition-opacity">
+              <span className="flex items-center gap-2">
+                <TrendingUp size={14} /> Ver protocolo de escalado paso a paso
+              </span>
+              <ChevronRight size={14} />
+            </button>
+          )}
+
           {analysis.signals.length > 0 && (
             <div className="space-y-2">
               <div className="text-[11px] font-semibold text-[var(--ink-4)] uppercase tracking-wider">Señales analizadas</div>
@@ -222,6 +374,7 @@ function AIPanel({ analysis }: { analysis: AIAnalysis }) {
           )}
         </div>
       )}
+      {showProtocol && <ScaleProtocolModal onClose={() => setShowProtocol(false)} />}
     </div>
   );
 }
@@ -612,6 +765,9 @@ export function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* Budget pacing */}
+      <BudgetPacing allMetrics={allMetrics} monthlyBudget={settings.monthlyAdsBudget ?? 0} />
 
       {/* Secondary metrics */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">

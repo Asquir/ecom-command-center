@@ -26,6 +26,9 @@ interface CachedLicense {
 const WORKER_ENDPOINT = process.env.NEXT_PUBLIC_LICENSE_ENDPOINT
   ?? "https://ecc-license.workers.dev/verify";
 
+// Hardcoded owner key — works without deploying the Worker
+const OWNER_KEYS = ["ECC-4M2DFMG9KF7V6Y9TIC"];
+// Additional keys from env (Vercel dashboard)
 const MASTER_KEY = process.env.NEXT_PUBLIC_MASTER_LICENSE_KEY ?? "";
 
 function readCache(): CachedLicense | null {
@@ -52,7 +55,7 @@ export async function verifyLicense(key: string, force = false): Promise<License
   }
 
   // Owner bypass — validated locally, no Worker call needed
-  if (MASTER_KEY && k === MASTER_KEY) {
+  if (OWNER_KEYS.includes(k) || (MASTER_KEY && k === MASTER_KEY)) {
     const result: CachedLicense = { key: k, valid: true, plan: "pro", expiresAt: null, cachedAt: Date.now() };
     writeCache(result);
     return { ...result, source: "remote" };

@@ -16,6 +16,7 @@ export interface AppSettings {
   hookTarget: number;
   pixelId: string;
   shopifyUrl: string;
+  monthlyAdsBudget: number;
   notifyKill: boolean;
   notifyScale: boolean;
   notifyPrimeTime: boolean;
@@ -34,6 +35,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aov: 0, margin: 0, beCpa: 0, beRoas: 0,
   ctrTarget: 2, cpcMax: 0.6, hookTarget: 35,
   pixelId: "", shopifyUrl: "",
+  monthlyAdsBudget: 0,
   notifyKill: true, notifyScale: true, notifyPrimeTime: true, autoReport: false,
   productName: "", productCost: 0, onboarded: false,
   userName: "", userEmail: "", storeName: "",

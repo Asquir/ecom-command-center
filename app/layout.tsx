@@ -8,7 +8,10 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "Ecom Command Center",
-  description: "Dropshipping & ecommerce operations OS",
+  description: "Dropshipping & ecommerce operations OS — campañas, creativos y decisiones IA",
+  manifest: "/manifest.json",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "ECC" },
+  themeColor: "#111111",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

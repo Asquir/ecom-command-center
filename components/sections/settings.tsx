@@ -292,6 +292,9 @@ export function Settings() {
       </Section>
 
       <Section title="Benchmarks de decisión" icon={<Target size={14} />}>
+        <Field label="Presupuesto mensual en ads" hint="Tu tope de gasto en Meta Ads por mes">
+          <Input value={settings.monthlyAdsBudget || ""} onChange={setStr("monthlyAdsBudget")} suffix="€" />
+        </Field>
         <Field label="CTR objetivo" hint="Por debajo → problema de creativo o audiencia">
           <Input value={settings.ctrTarget} onChange={setStr("ctrTarget")} suffix="%" />
         </Field>

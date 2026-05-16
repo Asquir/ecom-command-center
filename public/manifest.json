@@ -1,0 +1,19 @@
+{
+  "name": "Ecom Command Center",
+  "short_name": "ECC",
+  "description": "Dropshipping operations OS — campañas, creativos y decisiones IA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f4f0",
+  "theme_color": "#111111",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "es"
+}
