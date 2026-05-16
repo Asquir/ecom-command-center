@@ -4,13 +4,13 @@ import { useSettings } from "@/lib/settings-context";
 import {
   LayoutDashboard, Calculator, Play, Shield, CheckSquare,
   Package, Megaphone, Calendar, ShoppingBag, Receipt,
-  FileBarChart, Settings, FlaskConical, Wallet, TrendingUp, X
+  FileBarChart, Settings, FlaskConical, Wallet, TrendingUp, X, Sparkles
 } from "lucide-react";
 
 export type Section =
   | "dashboard" | "calculator" | "creatives" | "rules" | "checklist"
   | "products" | "campaigns" | "planner" | "orders" | "expenses"
-  | "reports" | "settings" | "cashflow" | "lab";
+  | "reports" | "settings" | "cashflow" | "lab" | "creative-studio";
 
 const NAV_GROUPS: {
   label: string;
@@ -19,11 +19,12 @@ const NAV_GROUPS: {
   {
     label: "Decisiones",
     items: [
-      { id: "dashboard",  label: "Dashboard",         icon: LayoutDashboard },
-      { id: "campaigns",  label: "Campañas",          icon: Megaphone },
-      { id: "creatives",  label: "Creativos",         icon: Play },
-      { id: "rules",      label: "Reglas kill/scale", icon: Shield },
-      { id: "lab",        label: "Lab A/B",           icon: FlaskConical, badge: "BETA" },
+      { id: "dashboard",        label: "Dashboard",         icon: LayoutDashboard },
+      { id: "campaigns",        label: "Campañas",          icon: Megaphone },
+      { id: "creatives",        label: "Creativos",         icon: Play },
+      { id: "creative-studio",  label: "Creative Studio",   icon: Sparkles, badge: "PRO" },
+      { id: "rules",            label: "Reglas kill/scale", icon: Shield },
+      { id: "lab",              label: "Lab A/B",           icon: FlaskConical, badge: "BETA" },
     ],
   },
   {

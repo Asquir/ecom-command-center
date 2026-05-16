@@ -5,7 +5,7 @@ import { X, Lightbulb } from "lucide-react";
 type HintKey =
   | "dashboard" | "calculator" | "creatives" | "rules" | "checklist"
   | "products" | "campaigns" | "planner" | "orders" | "expenses"
-  | "reports" | "settings" | "cashflow" | "lab";
+  | "reports" | "settings" | "cashflow" | "lab" | "creative-studio";
 
 const HINTS: Record<HintKey, { title: string; body: string }> = {
   dashboard: {
@@ -63,6 +63,10 @@ const HINTS: Record<HintKey, { title: string; body: string }> = {
   settings: {
     title: "Ajustes y benchmarks",
     body: "Configura tus objetivos (CTR mínimo, CPC máximo, hook rate target) y la app usará esos valores para evaluar campañas y creativos. Abajo tienes la zona peligrosa para resetear datos.",
+  },
+  "creative-studio": {
+    title: "Genera creativos con Claude IA",
+    body: "Mete el nombre del producto y la IA genera 5 hooks, 3 scripts UGC y 3 textos de anuncio en segundos. Cada idea se puede convertir en creativo del banco con un click. Necesitas tu propia API key de Anthropic (~€0.003 por generación).",
   },
 };
 

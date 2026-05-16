@@ -10,6 +10,7 @@ import { QuickActionsPanel } from "@/components/quick-actions-panel";
 import { Dashboard } from "@/components/sections/dashboard";
 import { Calculator } from "@/components/sections/calculator";
 import { Creatives } from "@/components/sections/creatives";
+import { CreativeStudio } from "@/components/sections/creative-studio";
 import { Rules } from "@/components/sections/rules";
 import { Checklist } from "@/components/sections/checklist";
 import { Products } from "@/components/sections/products";
@@ -26,20 +27,21 @@ import { SetupProgress } from "@/components/setup-progress";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 
 const SECTION_LABELS: Record<Section, string> = {
-  dashboard:  "Dashboard · IA",
-  calculator: "Calculadora",
-  creatives:  "Creativos",
-  rules:      "Reglas de decisión",
-  checklist:  "Checklist",
-  products:   "Productos",
-  campaigns:  "Campañas",
-  planner:    "Testing Plan",
-  orders:     "Pedidos",
-  expenses:   "Gastos fijos",
-  reports:    "Reportes",
-  settings:   "Ajustes",
-  cashflow:   "Flujo de caja",
-  lab:        "Laboratorio A/B",
+  dashboard:         "Dashboard · IA",
+  calculator:        "Calculadora",
+  creatives:         "Creativos",
+  "creative-studio": "Creative Studio · IA",
+  rules:             "Reglas de decisión",
+  checklist:         "Checklist",
+  products:          "Productos",
+  campaigns:         "Campañas",
+  planner:           "Testing Plan",
+  orders:            "Pedidos",
+  expenses:          "Gastos fijos",
+  reports:           "Reportes",
+  settings:          "Ajustes",
+  cashflow:          "Flujo de caja",
+  lab:               "Laboratorio A/B",
 };
 
 function LoadingSkeleton() {
@@ -102,20 +104,21 @@ export default function Home() {
   const navigate = (s: Section) => { setSection(s); setSidebarOpen(false); };
 
   const sectionBody: Record<Section, React.ReactNode> = {
-    dashboard:  <Dashboard />,
-    calculator: <Calculator />,
-    creatives:  <Creatives />,
-    rules:      <Rules />,
-    checklist:  <Checklist />,
-    products:   <Products />,
-    campaigns:  <Campaigns />,
-    planner:    <Planner />,
-    orders:     <Orders />,
-    expenses:   <Expenses />,
-    reports:    <Reports />,
-    settings:   <Settings />,
-    cashflow:   <CashFlow />,
-    lab:        <Lab />,
+    dashboard:         <Dashboard />,
+    calculator:        <Calculator />,
+    creatives:         <Creatives />,
+    "creative-studio": <CreativeStudio />,
+    rules:             <Rules />,
+    checklist:         <Checklist />,
+    products:          <Products />,
+    campaigns:         <Campaigns />,
+    planner:           <Planner />,
+    orders:            <Orders />,
+    expenses:          <Expenses />,
+    reports:           <Reports />,
+    settings:          <Settings />,
+    cashflow:          <CashFlow />,
+    lab:               <Lab />,
   };
 
   return (

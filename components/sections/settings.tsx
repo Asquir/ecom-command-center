@@ -2,10 +2,14 @@
 import { useState, useEffect } from "react";
 import { eur } from "@/lib/utils";
 import { useSettings, DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings-context";
+import { useLocalStorage } from "@/lib/hooks";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell } from "lucide-react";
+import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell, Sparkles, ExternalLink, Key } from "lucide-react";
 import { exportBackup, importBackup } from "@/lib/data-io";
 import { requestPermission, getPermissionStatus } from "@/lib/notifications";
+import { ProBadge } from "@/components/ui/pro-gate";
+import { testAiConnection, type AiCfg, DEFAULT_AI_CFG } from "@/lib/integrations/claude";
+import { clearLicenseCache } from "@/lib/license";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -61,14 +65,31 @@ function SelectField({ value, onChange, options }: { value: string; onChange: (v
 }
 
 export function Settings() {
-  const { settings, setSettings } = useSettings();
-  const { success } = useToast();
+  const { settings, setSettings, isPro, plan, licenseChecking, refreshLicense } = useSettings();
+  const { success, warning } = useToast();
   const [saved, setSaved] = useState(false);
   const [notifStatus, setNotifStatus] = useState<string>("default");
+  const [aiCfg, setAiCfg] = useLocalStorage<AiCfg>("ecc-int-ai", DEFAULT_AI_CFG);
+  const [aiTesting, setAiTesting] = useState(false);
+  const [aiStatus, setAiStatus] = useState<"idle" | "ok" | "err">("idle");
+  const [aiErr, setAiErr] = useState("");
 
   useEffect(() => {
     setNotifStatus(getPermissionStatus());
   }, []);
+
+  const handleTestAi = async () => {
+    setAiTesting(true); setAiStatus("idle"); setAiErr("");
+    const r = await testAiConnection(aiCfg);
+    setAiTesting(false);
+    if (r.ok) { setAiStatus("ok"); success("Anthropic conectado", "API key válida."); }
+    else { setAiStatus("err"); setAiErr(r.error ?? "Error"); warning("Conexión fallida", r.error ?? ""); }
+  };
+
+  const handleVerifyLicense = async () => {
+    await refreshLicense();
+    success(isPro ? "Licencia válida" : "Licencia inválida", isPro ? "Pro activado." : "Revisa tu key.");
+  };
 
   const set = <K extends keyof AppSettings>(key: K, val: AppSettings[K]) =>
     setSettings(prev => ({ ...prev, [key]: val }));
@@ -109,6 +130,61 @@ export function Settings() {
         <div className="text-[10px] font-semibold text-[var(--ink-4)] uppercase tracking-widest mb-1">Configuración</div>
         <h1 className="text-[22px] font-bold tracking-tight text-[var(--ink-1)]">Ajustes</h1>
         <p className="text-[13px] text-[var(--ink-3)] mt-1">Los cambios aquí se aplican en toda la app: Dashboard, Campañas y Calculadora.</p>
+      </div>
+
+      {/* Subscription */}
+      <div className={`bg-white border rounded-xl shadow-sm overflow-hidden ${isPro ? "border-[var(--gold)] ring-2 ring-[rgba(200,169,106,0.15)]" : "border-[var(--border)]"}`}>
+        <div className="flex items-center gap-2.5 p-4 border-b border-[var(--border)]">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isPro ? "bg-gradient-to-br from-[var(--gold)] to-[var(--gold-deep)] text-[var(--ink-1)]" : "bg-[var(--bg-inset)] text-[var(--ink-3)]"}`}>
+            <Sparkles size={14} />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <div className="text-[13px] font-semibold text-[var(--ink-1)]">Suscripción</div>
+              {isPro ? <ProBadge /> : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-[var(--bg-inset)] text-[var(--ink-4)]">Free</span>}
+            </div>
+            <div className="text-[11px] text-[var(--ink-4)]">{isPro ? "Plan Pro activo — todas las features desbloqueadas" : "Plan Free — algunas features están bloqueadas"}</div>
+          </div>
+        </div>
+        <div className="p-4 space-y-3">
+          {!isPro && (
+            <div className="bg-[var(--gold-soft)] border border-[rgba(200,169,106,0.3)] rounded-xl p-4">
+              <div className="text-[12px] font-semibold text-[var(--ink-1)] mb-1.5">Pro — €19/mes</div>
+              <ul className="text-[12px] text-[var(--ink-2)] space-y-1 mb-3">
+                <li>✓ Creative Studio IA (Claude)</li>
+                <li>✓ Alertas Telegram en tiempo real</li>
+                <li>✓ Sync automático de Meta Ads</li>
+                <li>✓ Sync automático de Shopify</li>
+              </ul>
+              <a href="https://example-lemonsqueezy.com/buy/ecom-command-pro" target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black">
+                Activar Pro <ExternalLink size={11} />
+              </a>
+            </div>
+          )}
+          <Field label="License key" hint="Pega aquí la key que recibes tras suscribirte">
+            <div className="flex items-center gap-2">
+              <Input value={settings.licenseKey} onChange={v => set("licenseKey", v)} prefix="K" />
+            </div>
+          </Field>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handleVerifyLicense} disabled={licenseChecking || !settings.licenseKey}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black disabled:opacity-40">
+              {licenseChecking ? <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Key size={11} />}
+              Verificar
+            </button>
+            <button onClick={() => { clearLicenseCache(); set("licenseKey", ""); warning("Licencia eliminada", "Volverás a plan Free."); }}
+              className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[12px] hover:bg-[var(--bg-inset)]">
+              Eliminar
+            </button>
+            {isPro && (
+              <a href="https://billing.stripe.com/p/login/ecom-command" target="_blank" rel="noreferrer"
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[12px] hover:bg-[var(--bg-inset)]">
+                Gestionar suscripción <ExternalLink size={10} />
+              </a>
+            )}
+          </div>
+        </div>
       </div>
 
       <Section title="Mi perfil" icon={<User size={14} />}>
@@ -187,6 +263,47 @@ export function Settings() {
       </Section>
 
       <Section title="Integraciones" icon={<Link size={14} />}>
+        {/* Anthropic API key — for Creative Studio */}
+        <div className={`rounded-xl border p-4 ${isPro ? "border-[var(--gold)] bg-[var(--gold-soft)]" : "border-[var(--border)] bg-[var(--bg-inset)] opacity-60"}`}>
+          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Sparkles size={13} className="text-[var(--gold-deep)]" />
+              <span className="text-[12px] font-semibold text-[var(--ink-1)]">Anthropic Claude</span>
+              <ProBadge />
+            </div>
+            {aiStatus === "ok" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--success-soft)] text-[var(--success)]">Conectado</span>}
+            {aiStatus === "err" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--danger-soft)] text-[var(--danger)]">Error</span>}
+          </div>
+          <div className="text-[11px] text-[var(--ink-3)] mb-3">
+            Tu propia API key de Claude para generar hooks, scripts UGC y ad copy. Crea una en <a className="underline" href="https://console.anthropic.com/" target="_blank" rel="noreferrer">console.anthropic.com</a> · ~€0.003/generación.
+          </div>
+          <Field label="API key" hint="sk-ant-...">
+            <Input value={aiCfg.apiKey} onChange={v => setAiCfg(p => ({ ...p, apiKey: v }))} prefix="K" />
+          </Field>
+          <Field label="Modelo" hint="Haiku 4.5 es rápido y barato (recomendado)">
+            <select value={aiCfg.model} onChange={e => setAiCfg(p => ({ ...p, model: e.target.value }))}
+              className="h-8 px-2.5 pr-7 text-[13px] text-[var(--ink-1)] border border-[var(--border)] rounded-lg bg-white outline-none focus:border-[var(--gold)] appearance-none">
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (rápido · barato)</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (mejor calidad)</option>
+              <option value="claude-opus-4-7">Claude Opus 4.7 (máxima calidad)</option>
+            </select>
+          </Field>
+          <div className="flex gap-2 flex-wrap pt-1">
+            <button onClick={handleTestAi} disabled={aiTesting || !aiCfg.apiKey || !isPro}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black disabled:opacity-40">
+              {aiTesting ? <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Zap size={11} />}
+              Test connection
+            </button>
+            {aiCfg.apiKey && (
+              <button onClick={() => { setAiCfg(DEFAULT_AI_CFG); setAiStatus("idle"); warning("API key eliminada", ""); }}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[12px] hover:bg-[var(--bg-inset)]">
+                Eliminar
+              </button>
+            )}
+          </div>
+          {aiErr && <div className="mt-2 text-[11px] text-[var(--danger)]">{aiErr}</div>}
+        </div>
+
         <Field label="Meta Pixel ID" hint="ID del pixel configurado en Meta Business Suite">
           <Input value={settings.pixelId} onChange={v => set("pixelId", v)} prefix="ID" />
         </Field>

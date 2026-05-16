@@ -1,6 +1,7 @@
 "use client";
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useLocalStorage } from "./hooks";
+import { getCachedStatus, verifyLicense, type Plan } from "./license";
 
 export interface AppSettings {
   currency: string;
@@ -25,6 +26,7 @@ export interface AppSettings {
   userName: string;
   userEmail: string;
   storeName: string;
+  licenseKey: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -35,18 +37,62 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notifyKill: true, notifyScale: true, notifyPrimeTime: true, autoReport: false,
   productName: "", productCost: 0, onboarded: false,
   userName: "", userEmail: "", storeName: "",
+  licenseKey: "",
 };
 
 interface SettingsCtx {
   settings: AppSettings;
   setSettings: (s: AppSettings | ((prev: AppSettings) => AppSettings)) => void;
+  plan: Plan;
+  isPro: boolean;
+  licenseChecking: boolean;
+  refreshLicense: () => Promise<void>;
 }
 
-const Ctx = createContext<SettingsCtx>({ settings: DEFAULT_SETTINGS, setSettings: () => {} });
+const Ctx = createContext<SettingsCtx>({
+  settings: DEFAULT_SETTINGS,
+  setSettings: () => {},
+  plan: "free",
+  isPro: false,
+  licenseChecking: false,
+  refreshLicense: async () => {},
+});
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useLocalStorage<AppSettings>("ecc-settings", DEFAULT_SETTINGS);
-  return <Ctx.Provider value={{ settings, setSettings }}>{children}</Ctx.Provider>;
+  const [plan, setPlan] = useState<Plan>("free");
+  const [licenseChecking, setLicenseChecking] = useState(false);
+
+  const refreshLicense = async () => {
+    if (!settings.licenseKey) {
+      setPlan("free");
+      return;
+    }
+    setLicenseChecking(true);
+    try {
+      const status = await verifyLicense(settings.licenseKey);
+      setPlan(status.valid ? status.plan : "free");
+    } finally {
+      setLicenseChecking(false);
+    }
+  };
+
+  // On mount: read cached status (instant), then refresh in background
+  useEffect(() => {
+    if (!settings.licenseKey) { setPlan("free"); return; }
+    const cached = getCachedStatus(settings.licenseKey);
+    setPlan(cached.valid ? cached.plan : "free");
+    void refreshLicense();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.licenseKey]);
+
+  const isPro = plan === "pro";
+
+  return (
+    <Ctx.Provider value={{ settings, setSettings, plan, isPro, licenseChecking, refreshLicense }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useSettings() {
