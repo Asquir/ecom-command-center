@@ -530,6 +530,48 @@ function ProductDetail({ p: initialP, onBack, onStatusChange, onDelete, onUpdate
               </div>
             </div>
           </div>
+
+          {/* Competitor Research Quick Links */}
+          <div className="bg-white border border-[var(--border)] rounded-xl p-4 shadow-sm">
+            <div className="text-[11px] font-bold text-[var(--ink-4)] uppercase tracking-wider mb-3">Investigación rápida</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                {
+                  label: "Facebook Ad Library",
+                  hint: "Ver anuncios activos de competidores",
+                  color: "text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100",
+                  url: `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q=${encodeURIComponent(p.name)}&search_type=keyword_unordered`,
+                },
+                {
+                  label: "Google Trends",
+                  hint: "Tendencia de búsqueda del producto",
+                  color: "text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100",
+                  url: `https://trends.google.com/trends/explore?q=${encodeURIComponent(p.name)}&geo=${p.country.replace(/[^A-Z]/g, "").slice(0, 2)}`,
+                },
+                {
+                  label: "AliExpress",
+                  hint: "Comparar precios de proveedor",
+                  color: "text-orange-600 bg-orange-50 border-orange-200 hover:bg-orange-100",
+                  url: `https://es.aliexpress.com/wholesale?SearchText=${encodeURIComponent(p.name)}`,
+                },
+                {
+                  label: "CJ Dropshipping",
+                  hint: "Buscar en CJ con mejor margen",
+                  color: "text-purple-600 bg-purple-50 border-purple-200 hover:bg-purple-100",
+                  url: `https://cjdropshipping.com/search.html?searchKey=${encodeURIComponent(p.name)}`,
+                },
+              ].map(link => (
+                <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
+                  className={`flex flex-col gap-0.5 p-3 rounded-lg border text-left transition-colors ${link.color}`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-semibold">{link.label}</span>
+                    <ExternalLink size={10} className="opacity-60 flex-shrink-0" />
+                  </div>
+                  <span className="text-[10px] opacity-70 leading-tight">{link.hint}</span>
+                </a>
+              ))}
+            </div>
+          </div>
         </>
       )}
 

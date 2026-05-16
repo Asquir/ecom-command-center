@@ -22,6 +22,7 @@ import { Reports } from "@/components/sections/reports";
 import { Settings } from "@/components/sections/settings";
 import { CashFlow } from "@/components/sections/cashflow";
 import { Lab } from "@/components/sections/lab";
+import { Research } from "@/components/sections/research";
 import { Bell, Moon, Sun, Plus, X, Command, Menu } from "lucide-react";
 import { SetupProgress } from "@/components/setup-progress";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
@@ -42,6 +43,7 @@ const SECTION_LABELS: Record<Section, string> = {
   settings:          "Ajustes",
   cashflow:          "Flujo de caja",
   lab:               "Laboratorio A/B",
+  research:          "Investigación de producto",
 };
 
 function LoadingSkeleton() {
@@ -119,6 +121,7 @@ export default function Home() {
     settings:          <Settings />,
     cashflow:          <CashFlow />,
     lab:               <Lab />,
+    research:          <Research />,
   };
 
   return (

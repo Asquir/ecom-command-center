@@ -5,7 +5,7 @@ import { X, Lightbulb } from "lucide-react";
 type HintKey =
   | "dashboard" | "calculator" | "creatives" | "rules" | "checklist"
   | "products" | "campaigns" | "planner" | "orders" | "expenses"
-  | "reports" | "settings" | "cashflow" | "lab" | "creative-studio";
+  | "reports" | "settings" | "cashflow" | "lab" | "creative-studio" | "research";
 
 const HINTS: Record<HintKey, { title: string; body: string }> = {
   dashboard: {
@@ -67,6 +67,10 @@ const HINTS: Record<HintKey, { title: string; body: string }> = {
   "creative-studio": {
     title: "Genera creativos con Claude IA",
     body: "Mete el nombre del producto y la IA genera 5 hooks, 3 scripts UGC y 3 textos de anuncio en segundos. Cada idea se puede convertir en creativo del banco con un click. Necesitas tu propia API key de Anthropic (~€0.003 por generación).",
+  },
+  research: {
+    title: "Evalúa antes de gastar",
+    body: "Puntúa un producto en 9 criterios clave (margen, competencia, potencial creativo...) antes de invertir en ads. La app calcula un score 0–100 y te dice: Testear YA, Investigar más o Descartar. Evita tirar €50 en malos productos.",
   },
 };
 

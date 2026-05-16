@@ -4,13 +4,13 @@ import { useSettings } from "@/lib/settings-context";
 import {
   LayoutDashboard, Calculator, Play, Shield, CheckSquare,
   Package, Megaphone, Calendar, ShoppingBag, Receipt,
-  FileBarChart, Settings, FlaskConical, Wallet, TrendingUp, X, Sparkles
+  FileBarChart, Settings, FlaskConical, Wallet, TrendingUp, X, Sparkles, Search
 } from "lucide-react";
 
 export type Section =
   | "dashboard" | "calculator" | "creatives" | "rules" | "checklist"
   | "products" | "campaigns" | "planner" | "orders" | "expenses"
-  | "reports" | "settings" | "cashflow" | "lab" | "creative-studio";
+  | "reports" | "settings" | "cashflow" | "lab" | "creative-studio" | "research";
 
 const NAV_GROUPS: {
   label: string;
@@ -31,6 +31,7 @@ const NAV_GROUPS: {
     label: "Productos",
     items: [
       { id: "products",   label: "Productos",         icon: Package },
+      { id: "research",   label: "Investigación",     icon: Search, badge: "NEW" },
       { id: "planner",    label: "Testing plan",      icon: Calendar },
       { id: "orders",     label: "Pedidos",           icon: ShoppingBag },
     ],

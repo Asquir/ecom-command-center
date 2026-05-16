@@ -583,6 +583,84 @@ function MetricsForm({ initial, onSave }: { initial?: DailyMetrics; onSave: (m: 
   );
 }
 
+function TruePnL({ revenue, adSpend, purchases, margin, shopifyPlan }: {
+  revenue: number; adSpend: number; purchases: number; margin: number; shopifyPlan?: "basic" | "standard" | "advanced";
+}) {
+  const shopifyTxPct = shopifyPlan === "advanced" ? 0.005 : shopifyPlan === "standard" ? 0.01 : 0.02;
+  const shopifyFixed = 0.30;
+  const shopifyFees = revenue * shopifyTxPct + purchases * shopifyFixed;
+  const grossProfit = revenue * (margin / 100);
+  const netProfit = grossProfit - adSpend - shopifyFees;
+  const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+  const cogsAndShipping = revenue - grossProfit;
+
+  const rows = [
+    { label: "Ingresos brutos", value: revenue, sign: null },
+    { label: `COGS + envío (${(100 - margin).toFixed(0)}%)`, value: -cogsAndShipping, sign: "minus" },
+    { label: "Gasto en ads", value: -adSpend, sign: "minus" },
+    { label: `Fees Shopify (${(shopifyTxPct * 100).toFixed(1)}% + €${shopifyFixed}/pedido)`, value: -shopifyFees, sign: "minus" },
+  ];
+
+  const profitColor = netProfit > 0 ? "text-[var(--success)]" : netProfit < 0 ? "text-[var(--danger)]" : "text-[var(--ink-3)]";
+
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+      <div className="px-4 pt-4 pb-2 border-b border-[var(--border)] flex items-center justify-between">
+        <div>
+          <div className="text-[13px] font-semibold text-[var(--ink-1)]">P&L real · hoy</div>
+          <div className="text-[11px] text-[var(--ink-4)]">Beneficio neto después de todos los costes</div>
+        </div>
+        <div className={`text-right ${profitColor}`}>
+          <div className="font-mono font-bold text-[20px]">{eur(netProfit)}</div>
+          <div className="text-[10px] font-semibold">{netMargin.toFixed(1)}% margen neto</div>
+        </div>
+      </div>
+      <div className="p-4 space-y-1.5">
+        {rows.map((row, i) => (
+          <div key={i} className="flex items-center justify-between text-[12px]">
+            <span className={`${row.sign === "minus" ? "text-[var(--ink-3)]" : "font-semibold text-[var(--ink-1)]"}`}>{row.label}</span>
+            <span className={`font-mono font-semibold ${row.sign === "minus" ? "text-[var(--danger)]" : "text-[var(--ink-1)]"}`}>
+              {row.sign === "minus" ? `−${eur(Math.abs(row.value))}` : eur(row.value)}
+            </span>
+          </div>
+        ))}
+        <div className="border-t border-dashed border-[var(--border)] pt-1.5 mt-1 flex items-center justify-between text-[13px]">
+          <span className="font-bold text-[var(--ink-1)]">Beneficio neto</span>
+          <span className={`font-mono font-bold text-[15px] ${profitColor}`}>{eur(netProfit)}</span>
+        </div>
+        {margin === 0 && (
+          <div className="text-[11px] text-[var(--ink-4)] pt-1">
+            ⚠ Configura tu margen bruto en Ajustes → Benchmarks para un cálculo preciso.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CpmFatigueAlert({ allMetrics, todayCpm }: { allMetrics: DailyRecord; todayCpm: number }) {
+  if (todayCpm <= 0) return null;
+  const days = Object.keys(allMetrics).sort().slice(-8, -1); // last 7 days excluding today
+  const cpms = days.map(k => {
+    const m = allMetrics[k];
+    return m && m.impressions > 0 ? (m.spend / m.impressions) * 1000 : null;
+  }).filter((v): v is number => v !== null);
+  if (cpms.length < 3) return null;
+  const avgCpm = cpms.reduce((a, b) => a + b, 0) / cpms.length;
+  const pctChange = ((todayCpm - avgCpm) / avgCpm) * 100;
+  if (pctChange < 20) return null;
+
+  return (
+    <div className="flex items-start gap-2.5 bg-[var(--warning-soft)] border border-[rgba(245,158,11,0.25)] rounded-xl p-3">
+      <AlertTriangle size={13} className="text-[var(--warning)] flex-shrink-0 mt-0.5" />
+      <div className="text-[12px] text-[var(--ink-2)]">
+        <strong>CPM +{pctChange.toFixed(0)}% vs media 7d</strong> — Posible fatiga de creativos o audiencia saturando. Rota los anuncios o amplía la audiencia.
+        <span className="text-[var(--ink-4)] ml-1">(Hoy {eur(todayCpm)} · Media {eur(avgCpm)})</span>
+      </div>
+    </div>
+  );
+}
+
 function RoasHeatmap({ allMetrics, beRoas }: { allMetrics: DailyRecord; beRoas: number }) {
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i));
@@ -937,6 +1015,19 @@ export function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* CPM fatigue warning */}
+      <CpmFatigueAlert allMetrics={allMetrics} todayCpm={cpm} />
+
+      {/* True P&L breakdown */}
+      {settings.margin > 0 || m.purchases > 0 ? (
+        <TruePnL
+          revenue={m.revenue}
+          adSpend={m.spend}
+          purchases={m.purchases}
+          margin={settings.margin}
+        />
+      ) : null}
 
       {/* Funnel + Trend */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
