@@ -1,0 +1,9 @@
+name = "ecc-shopify-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://your-app-domain.com"
+
+# No secrets needed — user's admin token is passed per-request in the body
+# Rate limiting handled by Cloudflare free tier

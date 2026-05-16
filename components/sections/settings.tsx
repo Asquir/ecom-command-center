@@ -4,13 +4,14 @@ import { eur } from "@/lib/utils";
 import { useSettings, DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings-context";
 import { useLocalStorage } from "@/lib/hooks";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell, Sparkles, ExternalLink, Key, Send, MessageCircle, BarChart2 } from "lucide-react";
+import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell, Sparkles, ExternalLink, Key, Send, MessageCircle, BarChart2, ShoppingBag } from "lucide-react";
 import { exportBackup, importBackup } from "@/lib/data-io";
 import { requestPermission, getPermissionStatus } from "@/lib/notifications";
 import { ProBadge } from "@/components/ui/pro-gate";
 import { testAiConnection, type AiCfg, DEFAULT_AI_CFG } from "@/lib/integrations/claude";
 import { testTelegram, type TgCfg, DEFAULT_TG_CFG } from "@/lib/integrations/telegram";
 import { testMetaConnection, type MetaCfg, DEFAULT_META_CFG } from "@/lib/integrations/meta";
+import { testShopifyConnection, type ShopifyCfg, DEFAULT_SHOPIFY_CFG } from "@/lib/integrations/shopify";
 import { clearLicenseCache } from "@/lib/license";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -84,6 +85,11 @@ export function Settings() {
   const [metaStatus, setMetaStatus] = useState<"idle" | "ok" | "err">("idle");
   const [metaErr, setMetaErr] = useState("");
   const [metaAccountName, setMetaAccountName] = useState("");
+  const [shopifyCfg, setShopifyCfg] = useLocalStorage<ShopifyCfg>("ecc-int-shopify", DEFAULT_SHOPIFY_CFG);
+  const [shopifyTesting, setShopifyTesting] = useState(false);
+  const [shopifyStatus, setShopifyStatus] = useState<"idle" | "ok" | "err">("idle");
+  const [shopifyErr, setShopifyErr] = useState("");
+  const [shopifyName, setShopifyName] = useState("");
 
   useEffect(() => {
     setNotifStatus(getPermissionStatus());
@@ -95,6 +101,14 @@ export function Settings() {
     setAiTesting(false);
     if (r.ok) { setAiStatus("ok"); success("Anthropic conectado", "API key válida."); }
     else { setAiStatus("err"); setAiErr(r.error ?? "Error"); warning("Conexión fallida", r.error ?? ""); }
+  };
+
+  const handleTestShopify = async () => {
+    setShopifyTesting(true); setShopifyStatus("idle"); setShopifyErr(""); setShopifyName("");
+    const r = await testShopifyConnection(shopifyCfg);
+    setShopifyTesting(false);
+    if (r.ok) { setShopifyStatus("ok"); setShopifyName(r.shopName ?? ""); success("Shopify conectado", `Tienda: ${r.shopName}`); }
+    else { setShopifyStatus("err"); setShopifyErr(r.error ?? "Error"); warning("Conexión fallida", r.error ?? ""); }
   };
 
   const handleTestMeta = async () => {
@@ -420,6 +434,55 @@ export function Settings() {
             )}
           </div>
           {metaErr && <div className="mt-2 text-[11px] text-[var(--danger)]">{metaErr}</div>}
+        </div>
+
+        {/* Shopify sync */}
+        <div className={`rounded-xl border p-4 ${isPro ? "border-[var(--gold)] bg-[var(--gold-soft)]" : "border-[var(--border)] bg-[var(--bg-inset)] opacity-60"}`}>
+          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <ShoppingBag size={13} className="text-[var(--gold-deep)]" />
+              <span className="text-[12px] font-semibold text-[var(--ink-1)]">Shopify</span>
+              <ProBadge />
+            </div>
+            {shopifyStatus === "ok" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--success-soft)] text-[var(--success)]">{shopifyName || "Conectado"}</span>}
+            {shopifyStatus === "err" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--danger-soft)] text-[var(--danger)]">Error</span>}
+          </div>
+          <div className="text-[11px] text-[var(--ink-3)] mb-3 space-y-1">
+            <div>Importa pedidos de hoy automáticamente desde tu tienda Shopify.</div>
+            <div className="bg-white border border-[var(--border)] rounded-lg p-2 space-y-0.5 font-mono text-[10px] text-[var(--ink-3)]">
+              <div>1. Admin Shopify → Configuración → <span className="text-[var(--ink-1)] font-semibold">Apps y canales de venta</span> → Desarrollar apps</div>
+              <div>2. Crear app → configurar permisos: <span className="text-[var(--ink-1)] font-semibold">read_orders, read_products</span></div>
+              <div>3. Instalar app → copiar el <span className="text-[var(--ink-1)] font-semibold">token de API de administración</span></div>
+            </div>
+            <div className="text-[10px] text-[var(--warning)]">⚠ Requiere desplegar el Worker de proxy (ver workers/shopify/README.md)</div>
+          </div>
+          <div className="space-y-2 mb-3">
+            <Field label="Dominio de tienda" hint="tu-tienda.myshopify.com">
+              <Input value={shopifyCfg.shopDomain} onChange={v => setShopifyCfg(p => ({ ...p, shopDomain: v }))} prefix="🛍" />
+            </Field>
+            <Field label="Admin token" hint="shpat_xxxxxxxxxxxxxxxxxxxxxxxx">
+              <Input value={shopifyCfg.adminToken} onChange={v => setShopifyCfg(p => ({ ...p, adminToken: v }))} prefix="T" />
+            </Field>
+          </div>
+          {shopifyCfg.lastSync && (
+            <div className="text-[10px] text-[var(--ink-4)] mb-2">
+              Último sync: {new Date(shopifyCfg.lastSync).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </div>
+          )}
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handleTestShopify} disabled={shopifyTesting || !shopifyCfg.shopDomain || !shopifyCfg.adminToken || !isPro}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black disabled:opacity-40">
+              {shopifyTesting ? <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Zap size={11} />}
+              Test connection
+            </button>
+            {(shopifyCfg.shopDomain || shopifyCfg.adminToken) && (
+              <button onClick={() => { setShopifyCfg(DEFAULT_SHOPIFY_CFG); setShopifyStatus("idle"); warning("Shopify desconectado", ""); }}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[12px] hover:bg-[var(--bg-inset)]">
+                Eliminar
+              </button>
+            )}
+          </div>
+          {shopifyErr && <div className="mt-2 text-[11px] text-[var(--danger)]">{shopifyErr}</div>}
         </div>
 
         <Field label="Meta Pixel ID" hint="ID del pixel configurado en Meta Business Suite">
