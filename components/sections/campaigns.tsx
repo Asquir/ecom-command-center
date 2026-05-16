@@ -81,6 +81,62 @@ interface CampaignState extends Campaign {
   budget: number;
   status: string;
   decision: DecisionKind;
+  createdAt?: number; // epoch ms — used for age-gated scale decisions
+}
+
+function campaignDaysOld(c: CampaignState): number {
+  if (!c.createdAt) return 99; // legacy campaigns without timestamp = treat as mature
+  return Math.floor((Date.now() - c.createdAt) / 86_400_000) + 1;
+}
+
+interface DecisionResult {
+  decision: DecisionKind;
+  gated: boolean;
+  reasons: string[]; // why scale is blocked
+}
+
+function deriveDecisionFull(
+  createdAt: number | undefined,
+  spend: number, revenue: number, purchases: number,
+  roas: number, cpa: number, ctr: number,
+  beRoas: number, beCpa: number,
+): DecisionResult {
+  if (spend === 0) return { decision: "data", gated: false, reasons: [] };
+
+  const daysOld = createdAt ? Math.floor((Date.now() - createdAt) / 86_400_000) + 1 : 99;
+  const minSpendForKill = beCpa > 0 ? beCpa * 0.5 : spend * 0.5;
+
+  // Kill — needs enough spend to be meaningful
+  const clearlyBadRoas = beRoas > 0 && roas < beRoas * 0.6 && spend >= minSpendForKill;
+  const clearlyBadCpa  = beCpa > 0 && cpa > beCpa * 2.0 && spend >= minSpendForKill && purchases > 0;
+  if (clearlyBadRoas || clearlyBadCpa) return { decision: "kill", gated: false, reasons: [] };
+
+  // Scale gates — ALL must pass
+  const gates: { pass: boolean; reason: string }[] = [
+    { pass: daysOld >= 3,      reason: `Día ${daysOld} — espera mínimo 3 días de datos` },
+    { pass: purchases >= 3,    reason: `${purchases} compra${purchases === 1 ? "" : "s"} — necesitas ≥3 para confirmar` },
+    { pass: beCpa <= 0 || spend >= beCpa * 0.8,
+      reason: `Gasto €${spend.toFixed(0)} — necesitas ≥€${(beCpa * 0.8).toFixed(0)} (80% BE CPA)` },
+    { pass: beRoas <= 0 || roas >= beRoas * 1.15,
+      reason: `ROAS ${roas.toFixed(2)}× — necesitas ≥${(beRoas * 1.15).toFixed(2)}× (15% sobre BE)` },
+  ];
+
+  const failed = gates.filter(g => !g.pass);
+
+  if (beRoas > 0 && roas >= beRoas * 1.15 && failed.length === 0) {
+    return { decision: "scale", gated: false, reasons: [] };
+  }
+
+  if (beRoas > 0 && roas >= beRoas) {
+    // Profitable but gated
+    return {
+      decision: "watch",
+      gated: failed.length > 0,
+      reasons: failed.map(g => g.reason),
+    };
+  }
+
+  return { decision: "data", gated: false, reasons: [] };
 }
 
 function ScaleProtocolModal({ campaign, beRoas, onClose, onConfirm }: {
@@ -220,31 +276,26 @@ function MetricUpdateModal({ campaign, beRoas, beCpa, onClose, onSave }: {
   const cpa  = purchases > 0 ? spend / purchases : 0;
   const cpc  = ctr > 0 && spend > 0 ? (spend / ((ctr / 100) * 1000)) : 0;
 
-  function deriveDecision(): DecisionKind {
-    if (spend === 0) return "data";
-    if (beRoas > 0 && roas >= beRoas * 1.2) return "scale";
-    if (beRoas > 0 && roas < beRoas * 0.65) return "kill";
-    if (beCpa > 0 && cpa > beCpa * 1.8) return "kill";
-    if (beRoas > 0 && roas >= beRoas) return "watch";
-    return "data";
-  }
-  const decision = deriveDecision();
-  const decisionColor = { scale: "text-[var(--success)]", kill: "text-[var(--danger)]", watch: "text-[var(--gold-deep)]", data: "text-[var(--ink-3)]", paused: "text-[var(--ink-4)]" };
+  const daysOld = campaignDaysOld(campaign);
+  const result = deriveDecisionFull(campaign.createdAt, spend, revenue, purchases, roas, cpa, ctr, beRoas, beCpa);
+  const { decision, gated, reasons } = result;
 
+  const decisionColor = { scale: "text-[var(--success)]", kill: "text-[var(--danger)]", watch: "text-[var(--gold-deep)]", data: "text-[var(--ink-3)]", paused: "text-[var(--ink-4)]" };
   const inputCls = "w-full h-9 px-2.5 text-[13px] border border-[var(--border)] rounded-lg outline-none focus:border-[var(--gold)] font-mono bg-white";
 
   return (
     <Modal open onClose={onClose} title={`Métricas — ${campaign.name}`}>
       <div className="space-y-4">
-        <div className="text-[11px] text-[var(--ink-3)] bg-[var(--bg-inset)] rounded-lg px-3 py-2">
-          Copia los datos de Meta Ads Manager para esta campaña. La decisión kill/scale se actualizará automáticamente.
+        <div className="flex items-center gap-2 text-[11px] text-[var(--ink-3)] bg-[var(--bg-inset)] rounded-lg px-3 py-2">
+          <span className="font-mono font-bold text-[var(--ink-1)]">Día {daysOld}</span>
+          <span>desde el lanzamiento · Datos acumulados desde el inicio</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {([
-            { k: "spend"     as const, label: "Gasto en ads",  suffix: "€" },
-            { k: "revenue"   as const, label: "Ingresos",      suffix: "€" },
-            { k: "purchases" as const, label: "Compras",       suffix: "" },
-            { k: "ctr"       as const, label: "CTR",           suffix: "%" },
+            { k: "spend"     as const, label: "Gasto total",  suffix: "€" },
+            { k: "revenue"   as const, label: "Ingresos",     suffix: "€" },
+            { k: "purchases" as const, label: "Compras",      suffix: "" },
+            { k: "ctr"       as const, label: "CTR",          suffix: "%" },
           ] as { k: keyof MetricFields; label: string; suffix: string }[]).map(({ k, label, suffix }) => (
             <div key={k}>
               <label className="text-[11px] font-semibold text-[var(--ink-3)] block mb-1">{label}</label>
@@ -257,27 +308,57 @@ function MetricUpdateModal({ campaign, beRoas, beCpa, onClose, onSave }: {
           ))}
         </div>
         {spend > 0 && (
-          <div className="grid grid-cols-3 gap-2 p-3 bg-[var(--bg-inset)] rounded-xl">
-            <div>
-              <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">ROAS</div>
-              <div className={`font-mono font-bold text-[15px] ${beRoas > 0 ? (roas >= beRoas ? "text-[var(--success)]" : "text-[var(--danger)]") : "text-[var(--ink-1)]"}`}>{roas.toFixed(2)}×</div>
+          <>
+            <div className="grid grid-cols-3 gap-2 p-3 bg-[var(--bg-inset)] rounded-xl">
+              <div>
+                <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">ROAS</div>
+                <div className={`font-mono font-bold text-[15px] ${beRoas > 0 ? (roas >= beRoas ? "text-[var(--success)]" : "text-[var(--danger)]") : "text-[var(--ink-1)]"}`}>{roas.toFixed(2)}×</div>
+              </div>
+              <div>
+                <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">CPA</div>
+                <div className={`font-mono font-bold text-[15px] ${beCpa > 0 ? (cpa <= beCpa ? "text-[var(--success)]" : "text-[var(--danger)]") : "text-[var(--ink-1)]"}`}>{purchases > 0 ? `€${cpa.toFixed(2)}` : "—"}</div>
+              </div>
+              <div>
+                <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">Decisión</div>
+                <div className={`font-bold text-[12px] uppercase flex items-center gap-1 ${decisionColor[decision]}`}>
+                  {decision}
+                  {gated && <span className="text-[9px] bg-[var(--warning-soft)] text-[var(--warning)] border border-[rgba(245,158,11,0.3)] px-1 rounded normal-case font-semibold">bloqueada</span>}
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">CPA</div>
-              <div className={`font-mono font-bold text-[15px] ${beCpa > 0 ? (cpa <= beCpa ? "text-[var(--success)]" : "text-[var(--danger)]") : "text-[var(--ink-1)]"}`}>{purchases > 0 ? `€${cpa.toFixed(2)}` : "—"}</div>
-            </div>
-            <div>
-              <div className="text-[9px] text-[var(--ink-4)] uppercase tracking-wide mb-0.5">Decisión</div>
-              <div className={`font-bold text-[12px] uppercase ${decisionColor[decision]}`}>{decision}</div>
-            </div>
-          </div>
+            {/* Scale gate explanations */}
+            {gated && reasons.length > 0 && (
+              <div className="bg-[var(--warning-soft)] border border-[rgba(245,158,11,0.25)] rounded-xl p-3 space-y-1.5">
+                <div className="text-[11px] font-bold text-[var(--warning)] uppercase tracking-wide">
+                  ¿Por qué no escalar todavía?
+                </div>
+                {reasons.map((r, i) => (
+                  <div key={i} className="flex items-start gap-2 text-[12px] text-[var(--ink-2)]">
+                    <span className="text-[var(--warning)] mt-0.5">·</span>
+                    <span>{r}</span>
+                  </div>
+                ))}
+                <div className="text-[11px] text-[var(--ink-3)] pt-1 border-t border-[rgba(245,158,11,0.2)]">
+                  La decisión es <strong>Vigilar</strong> — rentable pero con datos insuficientes para escalar con seguridad.
+                </div>
+              </div>
+            )}
+            {decision === "scale" && (
+              <div className="bg-[var(--success-soft)] border border-[rgba(34,197,94,0.25)] rounded-xl p-3">
+                <div className="text-[12px] font-semibold text-[var(--success)]">✓ Lista para escalar</div>
+                <div className="text-[11px] text-[var(--ink-2)] mt-0.5">
+                  Día {daysOld} · {purchases} compras · ROAS {roas.toFixed(2)}× — todas las condiciones de escala cumplidas.
+                </div>
+              </div>
+            )}
+          </>
         )}
         <div className="flex gap-2 pt-1">
           <button onClick={() => {
             onSave({
               spend, revenue, purchases, roas, cpa, ctr, cpc,
               decision,
-              diag: spend > 0 ? `ROAS ${roas.toFixed(2)}× · CPA €${cpa.toFixed(2)} · CTR ${ctr.toFixed(1)}%` : campaign.diag,
+              diag: spend > 0 ? `Día ${daysOld} · ROAS ${roas.toFixed(2)}× · CPA €${cpa.toFixed(2)} · ${purchases} compras` : campaign.diag,
             });
           }} disabled={!spend}
             className="flex-1 py-2.5 rounded-xl bg-[var(--ink-1)] text-white text-[13px] font-semibold hover:bg-black disabled:opacity-40 flex items-center justify-center gap-2">
@@ -395,11 +476,13 @@ export function Campaigns() {
     setCampaigns(prev => [...prev, {
       id, name: autoName, product: "p1", objective: "Compras",
       type: "SBO", country: flag, budget: parseFloat(newBudget) || 15,
-      started: new Date().toLocaleDateString("es-MX", { day: "numeric", month: "short" }), status: "Activa",
+      started: new Date().toLocaleDateString("es-MX", { day: "numeric", month: "short" }),
+      createdAt: Date.now(),
+      status: "Activa",
       spend: 0, revenue: 0, roas: 0, cpa: 0, cpm: 0, cpc: 0,
       ctr: 0, hookRate: 0, holdRate: 0, atc: 0, ic: 0, purchases: 0, creatives: 0,
       decision: "data" as DecisionKind,
-      diag: "Campaña recién creada. Añade las métricas de Meta Ads Manager para ver la decisión.",
+      diag: "Día 1 — recién lanzada. Añade métricas al final del día para ver el diagnóstico.",
     }]);
     success("Campaña creada", autoName);
     setNewName(""); setNewBudget(""); setNewModal(false);
@@ -519,10 +602,18 @@ export function Campaigns() {
                     <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${semaphoreColor(c.decision)}`} />
                     <div className="min-w-0">
                       <div className="text-[13px] font-semibold text-[var(--ink-1)] truncate">{c.name}</div>
-                      <div className="text-[11px] text-[var(--ink-4)]">{c.country} · {c.status} · {eur(c.budget)}/d</div>
+                      <div className="text-[11px] text-[var(--ink-4)]">
+                        Día {campaignDaysOld(c)} · {c.country} · {c.status} · {eur(c.budget)}/d
+                      </div>
                     </div>
                   </div>
-                  <DecisionBadge kind={c.decision} />
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {c.decision === "watch" && (() => {
+                      const r = deriveDecisionFull(c.createdAt, c.spend, c.revenue, c.purchases, c.roas, c.cpa, c.ctr, beRoas, settings.beCpa);
+                      return r.gated ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--warning-soft)] text-[var(--warning)] border border-[rgba(245,158,11,0.3)]">Muy pronto</span> : null;
+                    })()}
+                    <DecisionBadge kind={c.decision} />
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   {([
@@ -603,7 +694,7 @@ export function Campaigns() {
                     <td className="px-4 py-3"><div className={`w-2.5 h-2.5 rounded-full ${semaphoreColor(c.decision)}`} /></td>
                     <td className="px-4 py-3">
                       <div className="text-[13px] font-medium text-[var(--ink-1)] max-w-[180px] truncate">{c.name}</div>
-                      <div className="text-[11px] text-[var(--ink-4)]">{c.country} · {c.status}</div>
+                      <div className="text-[11px] text-[var(--ink-4)]">Día {campaignDaysOld(c)} · {c.country} · {c.status}</div>
                     </td>
                     <td className="px-4 py-3"><span className="text-[11px] font-mono bg-[var(--bg-inset)] px-1.5 py-0.5 rounded text-[var(--ink-3)]">{c.type}</span></td>
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{eur(c.budget)}/d</td>
@@ -615,7 +706,14 @@ export function Campaigns() {
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{eur(c.cpa)}</td>
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{pct(c.ctr)}</td>
                     <td className="px-4 py-3 font-mono text-[13px] text-[var(--ink-2)]">{c.purchases}</td>
-                    <td className="px-4 py-3"><DecisionBadge kind={c.decision} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {c.decision === "watch" && deriveDecisionFull(c.createdAt, c.spend, c.revenue, c.purchases, c.roas, c.cpa, c.ctr, beRoas, settings.beCpa).gated && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--warning-soft)] text-[var(--warning)] border border-[rgba(245,158,11,0.3)]">Muy pronto</span>
+                        )}
+                        <DecisionBadge kind={c.decision} />
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button onClick={(e) => { e.stopPropagation(); deleteCampaign(c.id); }}
@@ -642,10 +740,24 @@ export function Campaigns() {
               <button onClick={() => setSelectedId(null)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg-inset)] text-[var(--ink-4)]"><X size={14} /></button>
             </div>
             <div className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className={`w-2.5 h-2.5 rounded-full ${semaphoreColor(selected.decision)}`} />
                 <DecisionBadge kind={selected.decision} />
+                <span className="text-[10px] font-mono bg-[var(--bg-inset)] border border-[var(--border)] px-1.5 py-0.5 rounded text-[var(--ink-3)]">
+                  Día {campaignDaysOld(selected)}
+                </span>
               </div>
+              {(() => {
+                const r = deriveDecisionFull(selected.createdAt, selected.spend, selected.revenue, selected.purchases, selected.roas, selected.cpa, selected.ctr, beRoas, settings.beCpa);
+                return r.gated && r.reasons.length > 0 ? (
+                  <div className="bg-[var(--warning-soft)] border border-[rgba(245,158,11,0.25)] rounded-lg p-3 space-y-1">
+                    <div className="text-[10px] font-bold text-[var(--warning)] uppercase tracking-wide">Por qué no escalar aún</div>
+                    {r.reasons.map((reason, i) => (
+                      <div key={i} className="text-[11px] text-[var(--ink-2)] flex gap-1.5"><span className="text-[var(--warning)]">·</span>{reason}</div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
               <div className="bg-[var(--bg-inset)] rounded-lg p-3 text-[12px] leading-relaxed text-[var(--ink-2)]">{selected.diag}</div>
               <div className="space-y-1.5">
                 {([
