@@ -8,9 +8,10 @@ import { eur, pct } from "@/lib/utils";
 import { analyzeMetrics, type AIAnalysis } from "@/lib/ai-engine";
 import { alert as alertFanout, scheduleDailySummary } from "@/lib/notifications";
 import { type TgCfg, DEFAULT_TG_CFG } from "@/lib/integrations/telegram";
+import { syncMetaToday, type MetaCfg, DEFAULT_META_CFG } from "@/lib/integrations/meta";
 import {
   Zap, AlertTriangle, Clock, Edit3, TrendingUp, TrendingDown,
-  BarChart2, CheckCircle, XCircle, Brain, ChevronRight
+  BarChart2, CheckCircle, XCircle, Brain, ChevronRight, RefreshCw, Wifi
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -19,6 +20,7 @@ import {
 interface DailyMetrics {
   spend: number; revenue: number; clicks: number; impressions: number;
   atc: number; checkouts: number; purchases: number;
+  source?: "manual" | "meta";
 }
 type DailyRecord = Record<string, DailyMetrics>;
 
@@ -399,15 +401,18 @@ function FunnelBar({ label, value, max, conv, target, status }: {
 }
 
 export function Dashboard() {
-  const { settings } = useSettings();
-  const { success } = useToast();
+  const { settings, isPro } = useSettings();
+  const { success, warning } = useToast();
   const today = todayKey();
   const [allMetrics, setAllMetrics] = useLocalStorage<DailyRecord>("ecc-daily-metrics", {});
   const [tgCfg] = useLocalStorage<TgCfg>("ecc-int-telegram", DEFAULT_TG_CFG);
+  const [metaCfg, setMetaCfg] = useLocalStorage<MetaCfg>("ecc-int-meta", DEFAULT_META_CFG);
+  const [syncing, setSyncing] = useState(false);
   const [editing, setEditing] = useState(false);
   const primeTime = usePrimeTimeCountdown(settings.country);
   const todayLabel = new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
   const notifiedRef = useRef(false);
+  const autoSyncedRef = useRef(false);
 
   const todayData = allMetrics[today] ?? null;
   const saveMetrics = (m: DailyMetrics) => { setAllMetrics(prev => ({ ...prev, [today]: m })); setEditing(false); };
@@ -442,6 +447,38 @@ export function Dashboard() {
     }, tg);
     return cleanup;
   }, [allMetrics, tgCfg, settings.beRoas, settings.margin, today]);
+
+  const runMetaSync = async () => {
+    if (!metaCfg.accessToken || syncing) return;
+    setSyncing(true);
+    const result = await syncMetaToday(metaCfg);
+    setSyncing(false);
+    if ("error" in result) {
+      if (result.error === "TOKEN_EXPIRED") warning("Token Meta expirado", "Ve a Business Manager y genera un nuevo System User token.");
+      else warning("Error al sincronizar Meta", result.error);
+      return;
+    }
+    const existing = allMetrics[result.date];
+    // Don't overwrite manual entries
+    if (existing?.source === "manual" || (existing && !existing.source)) {
+      success("Datos manuales presentes", "No se sobreescribieron tus métricas manuales. Edítalas para actualizarlas.");
+      return;
+    }
+    setAllMetrics(prev => ({ ...prev, [result.date]: result.patch }));
+    setMetaCfg(prev => ({ ...prev, lastSync: Date.now() }));
+    success("Meta sincronizado", `Gasto: €${result.patch.spend.toFixed(2)} · Ingresos: €${result.patch.revenue.toFixed(2)}`);
+  };
+
+  // Auto-sync if Meta configured, Pro, and 4h+ since last sync
+  useEffect(() => {
+    if (autoSyncedRef.current || !isPro || !metaCfg.accessToken) return;
+    const FOUR_HOURS = 4 * 60 * 60 * 1000;
+    if (!metaCfg.lastSync || Date.now() - metaCfg.lastSync > FOUR_HOURS) {
+      autoSyncedRef.current = true;
+      void runMetaSync();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPro, metaCfg.accessToken]);
 
   if (!todayData || editing) return <MetricsForm initial={todayData ?? undefined} onSave={saveMetrics} />;
 
@@ -497,7 +534,19 @@ export function Dashboard() {
             {settings.productName ? `${settings.productName} · ¿Qué hago ahora?` : "¿Qué hago ahora con mis campañas?"}
           </h1>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap items-center">
+          {todayData?.source === "meta" && (
+            <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(59,130,246,0.1)] text-blue-600 border border-[rgba(59,130,246,0.2)]">
+              <Wifi size={9} /> auto · Meta
+            </span>
+          )}
+          {isPro && metaCfg.accessToken && (
+            <button onClick={runMetaSync} disabled={syncing}
+              className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-2)] hover:bg-[var(--bg-inset)] flex items-center gap-1.5 transition-colors disabled:opacity-50">
+              <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
+              {syncing ? "Sincronizando…" : "Sync Meta"}
+            </button>
+          )}
           <button onClick={() => setEditing(true)}
             className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[var(--ink-2)] hover:bg-[var(--bg-inset)] flex items-center gap-1.5 transition-colors">
             <Edit3 size={12} /> Editar métricas

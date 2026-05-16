@@ -4,12 +4,13 @@ import { eur } from "@/lib/utils";
 import { useSettings, DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings-context";
 import { useLocalStorage } from "@/lib/hooks";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell, Sparkles, ExternalLink, Key, Send, MessageCircle } from "lucide-react";
+import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell, Sparkles, ExternalLink, Key, Send, MessageCircle, BarChart2 } from "lucide-react";
 import { exportBackup, importBackup } from "@/lib/data-io";
 import { requestPermission, getPermissionStatus } from "@/lib/notifications";
 import { ProBadge } from "@/components/ui/pro-gate";
 import { testAiConnection, type AiCfg, DEFAULT_AI_CFG } from "@/lib/integrations/claude";
 import { testTelegram, type TgCfg, DEFAULT_TG_CFG } from "@/lib/integrations/telegram";
+import { testMetaConnection, type MetaCfg, DEFAULT_META_CFG } from "@/lib/integrations/meta";
 import { clearLicenseCache } from "@/lib/license";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -78,6 +79,11 @@ export function Settings() {
   const [tgTesting, setTgTesting] = useState(false);
   const [tgStatus, setTgStatus] = useState<"idle" | "ok" | "err">("idle");
   const [tgErr, setTgErr] = useState("");
+  const [metaCfg, setMetaCfg] = useLocalStorage<MetaCfg>("ecc-int-meta", DEFAULT_META_CFG);
+  const [metaTesting, setMetaTesting] = useState(false);
+  const [metaStatus, setMetaStatus] = useState<"idle" | "ok" | "err">("idle");
+  const [metaErr, setMetaErr] = useState("");
+  const [metaAccountName, setMetaAccountName] = useState("");
 
   useEffect(() => {
     setNotifStatus(getPermissionStatus());
@@ -89,6 +95,14 @@ export function Settings() {
     setAiTesting(false);
     if (r.ok) { setAiStatus("ok"); success("Anthropic conectado", "API key válida."); }
     else { setAiStatus("err"); setAiErr(r.error ?? "Error"); warning("Conexión fallida", r.error ?? ""); }
+  };
+
+  const handleTestMeta = async () => {
+    setMetaTesting(true); setMetaStatus("idle"); setMetaErr(""); setMetaAccountName("");
+    const r = await testMetaConnection(metaCfg);
+    setMetaTesting(false);
+    if (r.ok) { setMetaStatus("ok"); setMetaAccountName(r.accountName ?? ""); success("Meta conectado", `Cuenta: ${r.accountName ?? metaCfg.adAccountId}`); }
+    else { setMetaStatus("err"); setMetaErr(r.error ?? "Error"); warning("Conexión fallida", r.error ?? ""); }
   };
 
   const handleTestTelegram = async () => {
@@ -358,6 +372,54 @@ export function Settings() {
             )}
           </div>
           {tgErr && <div className="mt-2 text-[11px] text-[var(--danger)]">{tgErr}</div>}
+        </div>
+
+        {/* Meta Ads sync */}
+        <div className={`rounded-xl border p-4 ${isPro ? "border-[var(--gold)] bg-[var(--gold-soft)]" : "border-[var(--border)] bg-[var(--bg-inset)] opacity-60"}`}>
+          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <BarChart2 size={13} className="text-[var(--gold-deep)]" />
+              <span className="text-[12px] font-semibold text-[var(--ink-1)]">Meta Ads</span>
+              <ProBadge />
+            </div>
+            {metaStatus === "ok" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--success-soft)] text-[var(--success)]">{metaAccountName || "Conectado"}</span>}
+            {metaStatus === "err" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--danger-soft)] text-[var(--danger)]">Error</span>}
+          </div>
+          <div className="text-[11px] text-[var(--ink-3)] mb-3 space-y-1">
+            <div>Sincroniza automáticamente las métricas de hoy (gasto, ingresos, clics, compras) desde tu cuenta de Meta Ads.</div>
+            <div className="bg-white border border-[var(--border)] rounded-lg p-2 space-y-0.5 font-mono text-[10px] text-[var(--ink-3)]">
+              <div>1. En Meta Business Suite → Configuración → <span className="text-[var(--ink-1)] font-semibold">Usuarios del sistema</span></div>
+              <div>2. Crea un usuario de sistema con permisos <span className="text-[var(--ink-1)] font-semibold">ads_read</span></div>
+              <div>3. Genera un token y cópialo aquí junto a tu Ad Account ID</div>
+            </div>
+          </div>
+          <div className="space-y-2 mb-3">
+            <Field label="Access token" hint="Token de usuario de sistema (60d de duración)">
+              <Input value={metaCfg.accessToken} onChange={v => setMetaCfg(p => ({ ...p, accessToken: v }))} prefix="T" />
+            </Field>
+            <Field label="Ad Account ID" hint="act_XXXXXXXXXX (sin el act_ también vale)">
+              <Input value={metaCfg.adAccountId} onChange={v => setMetaCfg(p => ({ ...p, adAccountId: v }))} prefix="@" />
+            </Field>
+          </div>
+          {metaCfg.lastSync && (
+            <div className="text-[10px] text-[var(--ink-4)] mb-2">
+              Último sync: {new Date(metaCfg.lastSync).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </div>
+          )}
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handleTestMeta} disabled={metaTesting || !metaCfg.accessToken || !metaCfg.adAccountId || !isPro}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black disabled:opacity-40">
+              {metaTesting ? <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Zap size={11} />}
+              Test connection
+            </button>
+            {(metaCfg.accessToken || metaCfg.adAccountId) && (
+              <button onClick={() => { setMetaCfg(DEFAULT_META_CFG); setMetaStatus("idle"); warning("Meta desconectado", ""); }}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[12px] hover:bg-[var(--bg-inset)]">
+                Eliminar
+              </button>
+            )}
+          </div>
+          {metaErr && <div className="mt-2 text-[11px] text-[var(--danger)]">{metaErr}</div>}
         </div>
 
         <Field label="Meta Pixel ID" hint="ID del pixel configurado en Meta Business Suite">
