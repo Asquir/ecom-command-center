@@ -4,11 +4,12 @@ import { eur } from "@/lib/utils";
 import { useSettings, DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings-context";
 import { useLocalStorage } from "@/lib/hooks";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell, Sparkles, ExternalLink, Key } from "lucide-react";
+import { CheckCircle, Settings2, Globe, Target, Zap, Link, Trash2, AlertTriangle, User, Download, Upload, Bell, Sparkles, ExternalLink, Key, Send, MessageCircle } from "lucide-react";
 import { exportBackup, importBackup } from "@/lib/data-io";
 import { requestPermission, getPermissionStatus } from "@/lib/notifications";
 import { ProBadge } from "@/components/ui/pro-gate";
 import { testAiConnection, type AiCfg, DEFAULT_AI_CFG } from "@/lib/integrations/claude";
+import { testTelegram, type TgCfg, DEFAULT_TG_CFG } from "@/lib/integrations/telegram";
 import { clearLicenseCache } from "@/lib/license";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -73,6 +74,10 @@ export function Settings() {
   const [aiTesting, setAiTesting] = useState(false);
   const [aiStatus, setAiStatus] = useState<"idle" | "ok" | "err">("idle");
   const [aiErr, setAiErr] = useState("");
+  const [tgCfg, setTgCfg] = useLocalStorage<TgCfg>("ecc-int-telegram", DEFAULT_TG_CFG);
+  const [tgTesting, setTgTesting] = useState(false);
+  const [tgStatus, setTgStatus] = useState<"idle" | "ok" | "err">("idle");
+  const [tgErr, setTgErr] = useState("");
 
   useEffect(() => {
     setNotifStatus(getPermissionStatus());
@@ -84,6 +89,14 @@ export function Settings() {
     setAiTesting(false);
     if (r.ok) { setAiStatus("ok"); success("Anthropic conectado", "API key válida."); }
     else { setAiStatus("err"); setAiErr(r.error ?? "Error"); warning("Conexión fallida", r.error ?? ""); }
+  };
+
+  const handleTestTelegram = async () => {
+    setTgTesting(true); setTgStatus("idle"); setTgErr("");
+    const r = await testTelegram(tgCfg);
+    setTgTesting(false);
+    if (r.ok) { setTgStatus("ok"); success("Telegram conectado", "Mira tu chat — llegó el mensaje de prueba."); }
+    else { setTgStatus("err"); setTgErr(r.error ?? "Error"); warning("Conexión fallida", r.error ?? ""); }
   };
 
   const handleVerifyLicense = async () => {
@@ -302,6 +315,49 @@ export function Settings() {
             )}
           </div>
           {aiErr && <div className="mt-2 text-[11px] text-[var(--danger)]">{aiErr}</div>}
+        </div>
+
+        {/* Telegram alerts */}
+        <div className={`rounded-xl border p-4 ${isPro ? "border-[var(--gold)] bg-[var(--gold-soft)]" : "border-[var(--border)] bg-[var(--bg-inset)] opacity-60"}`}>
+          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <MessageCircle size={13} className="text-[var(--gold-deep)]" />
+              <span className="text-[12px] font-semibold text-[var(--ink-1)]">Alertas Telegram</span>
+              <ProBadge />
+            </div>
+            {tgStatus === "ok" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--success-soft)] text-[var(--success)]">Conectado</span>}
+            {tgStatus === "err" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--danger-soft)] text-[var(--danger)]">Error</span>}
+          </div>
+          <div className="text-[11px] text-[var(--ink-3)] mb-3 space-y-1">
+            <div>Recibe alertas de ROAS, scale gates y resumen diario directo en Telegram. Sin abrir la app.</div>
+            <div className="bg-white border border-[var(--border)] rounded-lg p-2 space-y-0.5 font-mono text-[10px] text-[var(--ink-3)]">
+              <div>1. Habla con <span className="text-[var(--ink-1)] font-semibold">@BotFather</span> → /newbot → copia el token</div>
+              <div>2. Habla con <span className="text-[var(--ink-1)] font-semibold">@userinfobot</span> → copia tu Chat ID</div>
+              <div>3. Pega ambos aquí y pulsa <span className="text-[var(--ink-1)] font-semibold">Enviar prueba</span></div>
+            </div>
+          </div>
+          <div className="space-y-2 mb-3">
+            <Field label="Bot token" hint="123456789:AAFxxx...">
+              <Input value={tgCfg.botToken} onChange={v => setTgCfg(p => ({ ...p, botToken: v }))} prefix="🤖" />
+            </Field>
+            <Field label="Chat ID" hint="Tu ID numérico de usuario">
+              <Input value={tgCfg.chatId} onChange={v => setTgCfg(p => ({ ...p, chatId: v }))} prefix="#" />
+            </Field>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handleTestTelegram} disabled={tgTesting || !tgCfg.botToken || !tgCfg.chatId || !isPro}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--ink-1)] text-white text-[12px] font-semibold hover:bg-black disabled:opacity-40">
+              {tgTesting ? <span className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Send size={11} />}
+              Enviar prueba
+            </button>
+            {(tgCfg.botToken || tgCfg.chatId) && (
+              <button onClick={() => { setTgCfg(DEFAULT_TG_CFG); setTgStatus("idle"); warning("Telegram desconectado", ""); }}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--ink-3)] text-[12px] hover:bg-[var(--bg-inset)]">
+                Eliminar
+              </button>
+            )}
+          </div>
+          {tgErr && <div className="mt-2 text-[11px] text-[var(--danger)]">{tgErr}</div>}
         </div>
 
         <Field label="Meta Pixel ID" hint="ID del pixel configurado en Meta Business Suite">

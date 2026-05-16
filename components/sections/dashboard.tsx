@@ -6,7 +6,8 @@ import { useToast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/export";
 import { eur, pct } from "@/lib/utils";
 import { analyzeMetrics, type AIAnalysis } from "@/lib/ai-engine";
-import { notify } from "@/lib/notifications";
+import { alert as alertFanout, scheduleDailySummary } from "@/lib/notifications";
+import { type TgCfg, DEFAULT_TG_CFG } from "@/lib/integrations/telegram";
 import {
   Zap, AlertTriangle, Clock, Edit3, TrendingUp, TrendingDown,
   BarChart2, CheckCircle, XCircle, Brain, ChevronRight
@@ -402,6 +403,7 @@ export function Dashboard() {
   const { success } = useToast();
   const today = todayKey();
   const [allMetrics, setAllMetrics] = useLocalStorage<DailyRecord>("ecc-daily-metrics", {});
+  const [tgCfg] = useLocalStorage<TgCfg>("ecc-int-telegram", DEFAULT_TG_CFG);
   const [editing, setEditing] = useState(false);
   const primeTime = usePrimeTimeCountdown(settings.country);
   const todayLabel = new Date().toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
@@ -410,16 +412,36 @@ export function Dashboard() {
   const todayData = allMetrics[today] ?? null;
   const saveMetrics = (m: DailyMetrics) => { setAllMetrics(prev => ({ ...prev, [today]: m })); setEditing(false); };
 
-  // Compute for notification check (needed before early return)
   const todayRoas = todayData && todayData.spend > 0 ? todayData.revenue / todayData.spend : 0;
 
   useEffect(() => {
     if (notifiedRef.current || !todayData || !settings.notifyKill) return;
     if (settings.beRoas > 0 && todayRoas > 0 && todayRoas < settings.beRoas * 0.8) {
-      notify("⚠️ ROAS por debajo del break-even", `ROAS actual: ${todayRoas.toFixed(2)}× · BE: ${settings.beRoas}× — Revisa tus campañas.`);
+      const tg = tgCfg?.botToken ? tgCfg : null;
+      alertFanout(
+        "⚠️ ROAS por debajo del break-even",
+        `ROAS actual: ${todayRoas.toFixed(2)}× · BE: ${settings.beRoas}× — Revisa tus campañas.`,
+        tg,
+        `⚠️ <b>ROAS por debajo del break-even</b>\n\nROAS actual: <b>${todayRoas.toFixed(2)}×</b>\nBreak-even: ${settings.beRoas}×\n\nRevisa tus campañas ahora.`,
+      );
       notifiedRef.current = true;
     }
   }, [todayData]);
+
+  // Daily summary at 22:00 local
+  useEffect(() => {
+    const tg = tgCfg?.botToken ? tgCfg : null;
+    const cleanup = scheduleDailySummary(() => {
+      const m = allMetrics[today];
+      if (!m || m.spend === 0) return null;
+      const roas = m.spend > 0 ? (m.revenue / m.spend).toFixed(2) : "0";
+      const profit = (m.revenue * (settings.margin / 100) - m.spend).toFixed(2);
+      const decision = parseFloat(roas) >= settings.beRoas ? "✅ Rentable" : "⚠️ Por debajo de BE";
+      const text = `📊 <b>Resumen del día — ${today}</b>\n\nGasto: <b>€${m.spend.toFixed(2)}</b>\nIngresos: <b>€${m.revenue.toFixed(2)}</b>\nROAS: <b>${roas}×</b>\nCompras: <b>${m.purchases}</b>\nBeneficio neto: <b>€${profit}</b>\n\n${decision}`;
+      return { text };
+    }, tg);
+    return cleanup;
+  }, [allMetrics, tgCfg, settings.beRoas, settings.margin, today]);
 
   if (!todayData || editing) return <MetricsForm initial={todayData ?? undefined} onSave={saveMetrics} />;
 
