@@ -5,13 +5,14 @@ import { useSettings } from "@/lib/settings-context";
 import { useToast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/export";
 import { eur, pct } from "@/lib/utils";
-import { analyzeMetrics, type AIAnalysis } from "@/lib/ai-engine";
+import { analyzeMetrics, type AIAnalysis, type ProductContext } from "@/lib/ai-engine";
 import { alert as alertFanout, scheduleDailySummary } from "@/lib/notifications";
 import { type TgCfg, DEFAULT_TG_CFG } from "@/lib/integrations/telegram";
 import { syncMetaToday, type MetaCfg, DEFAULT_META_CFG } from "@/lib/integrations/meta";
+import { type Product, type CampaignStructure } from "@/lib/data";
 import {
   Zap, AlertTriangle, Clock, Edit3, TrendingUp, TrendingDown,
-  BarChart2, CheckCircle, XCircle, Brain, ChevronRight, RefreshCw, Wifi, DollarSign
+  BarChart2, CheckCircle, XCircle, Brain, ChevronRight, RefreshCw, Wifi, DollarSign, Calendar
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -379,6 +380,115 @@ function AIPanel({ analysis }: { analysis: AIAnalysis }) {
   );
 }
 
+function TodayBrief({ productName, campaignType, country, testingDay, roas, beRoas, spend, purchases }: {
+  productName: string; campaignType?: string; country: string;
+  testingDay: number | null; roas: number; beRoas: number; spend: number; purchases: number;
+}) {
+  const phaseLabel = testingDay == null ? null
+    : testingDay === 1 ? "Lanzamiento"
+    : testingDay <= 3 ? "Señales tempranas"
+    : testingDay <= 5 ? "Validación"
+    : testingDay <= 7 ? "Decisión"
+    : "Escalado activo";
+
+  const countryFlag = country === "ES" ? "🇪🇸" : country === "US" ? "🇺🇸" : country === "MX" ? "🇲🇽" : country === "BR" ? "🇧🇷" : "🌍";
+  const campColor = campaignType === "ABO" ? "text-blue-600 bg-blue-50 border-blue-200"
+                  : campaignType === "CBO" ? "text-purple-600 bg-purple-50 border-purple-200"
+                  : campaignType === "ASC" ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                  : "text-[var(--ink-3)] bg-[var(--bg-inset)] border-[var(--border)]";
+
+  const phaseColor = testingDay == null ? "bg-[var(--bg-inset)] border-[var(--border)] text-[var(--ink-4)]"
+    : testingDay <= 3 ? "bg-blue-50 border-blue-200 text-blue-700"
+    : testingDay <= 5 ? "bg-amber-50 border-amber-200 text-amber-700"
+    : testingDay <= 7 ? "bg-orange-50 border-orange-200 text-orange-700"
+    : "bg-emerald-50 border-emerald-200 text-emerald-700";
+
+  // Generate today's 3 specific actions based on day + performance
+  const actions: string[] = [];
+  if (testingDay === 1) {
+    actions.push("No toques nada hoy. El algoritmo está en fase de aprendizaje.");
+    actions.push("Verifica que el pixel está disparando correctamente en cada evento.");
+    if (campaignType === "ABO") actions.push("Revisa el spend por ad set — detecta cuál recibe más presupuesto.");
+    else if (campaignType === "CBO") actions.push("Confirma que la CBO está distribuyendo entre todos los ad sets.");
+    else actions.push("Asegúrate de que los creativos están todos activos y aprobados.");
+  } else if (testingDay === 2 || testingDay === 3) {
+    if (purchases === 0 && spend > 0) {
+      actions.push("0 compras. Normal hasta día 3 — no pauses todavía.");
+      actions.push("Fíjate en el ATC: si hay carrito pero 0 compras, el problema es el checkout o precio.");
+    } else {
+      actions.push(`${purchases} compra(s). Compara CPA vs break-even antes de escalar.`);
+    }
+    actions.push("Identifica qué creativo tiene mejor CTR — ese es tu ganador provisional.");
+    if (campaignType === "ABO") actions.push("Si un ad set tiene 0 spend en 48h, está perdido — considera pausarlo.");
+  } else if (testingDay != null && testingDay >= 4 && testingDay <= 5) {
+    if (beRoas > 0 && roas >= beRoas) {
+      actions.push(`ROAS ${roas.toFixed(2)}× por encima del BE. Día clave para validar consistencia.`);
+      actions.push("Si hoy repites ROAS ≥ BE, tienes señal verde. Prepara el plan de escala.");
+    } else {
+      actions.push("ROAS por debajo del BE. Identifica si el problema es creativo, copy o precio.");
+      actions.push("Testea una variante de precio +10% o una oferta de urgencia.");
+    }
+    if (campaignType === "CBO") actions.push("No ajustes el presupuesto CBO todavía — necesita mínimo 7 días de datos.");
+  } else if (testingDay === 6 || testingDay === 7) {
+    actions.push("Día de decisión. Consolida los datos de toda la semana.");
+    if (beRoas > 0 && roas >= beRoas) {
+      actions.push("Con 2+ días rentables, tienes base para escalar. Usa el protocolo de escalado.");
+    } else {
+      actions.push("Sin rentabilidad consistente en 7 días, considera pausar y revisar oferta/creativo.");
+    }
+    actions.push("Documenta los aprendizajes en la sección Productos antes de decidir.");
+  } else if (testingDay && testingDay >= 8) {
+    if (beRoas > 0 && roas >= beRoas * 1.2) {
+      actions.push("Rendimiento sólido. Considera +20% de presupuesto si llevas 3 días seguidos rentables.");
+    } else {
+      actions.push("En fase de escalado, mantén la consistencia. No escales si el ROAS baja.");
+    }
+    actions.push("Monitoriza la frecuencia de anuncios — si supera 3.0, renueva creativos.");
+    if (campaignType === "ABO") actions.push("Escala solo el ad set ganador, +20% cada 3 días máximo.");
+    else if (campaignType === "CBO") actions.push("Sube presupuesto de campaña, no de ad sets individuales.");
+  } else {
+    // No testing day set
+    actions.push("Configura la fecha de inicio en la sección Planner para recibir guía día a día.");
+  }
+
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-2xl p-4 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Calendar size={13} className="text-[var(--ink-4)] flex-shrink-0" />
+          <div className="text-[10px] font-bold text-[var(--ink-4)] uppercase tracking-widest">Situación de hoy</div>
+          {testingDay && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${phaseColor}`}>
+              D{testingDay} · {phaseLabel}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {campaignType && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${campColor}`}>{campaignType}</span>
+          )}
+          {country && <span className="text-[14px]">{countryFlag}</span>}
+        </div>
+      </div>
+      {productName && (
+        <div className="text-[15px] font-bold text-[var(--ink-1)] mb-3">
+          {testingDay ? `Día ${testingDay} de testing — ` : ""}{productName}
+        </div>
+      )}
+      <div className="space-y-2">
+        {actions.map((a, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5 ${i === 0 ? "bg-[var(--ink-1)] text-white" : "bg-[var(--bg-inset)] text-[var(--ink-3)] border border-[var(--border)]"}`}>
+              {i + 1}
+            </span>
+            <span className={`text-[12px] leading-relaxed ${i === 0 ? "font-semibold text-[var(--ink-1)]" : "text-[var(--ink-2)]"}`}>{a}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function NumInput({ label, hint, value, onChange, suffix }: {
   label: string; hint?: string; value: string; onChange: (v: string) => void; suffix?: string;
 }) {
@@ -560,6 +670,8 @@ export function Dashboard() {
   const [allMetrics, setAllMetrics] = useLocalStorage<DailyRecord>("ecc-daily-metrics", {});
   const [tgCfg] = useLocalStorage<TgCfg>("ecc-int-telegram", DEFAULT_TG_CFG);
   const [metaCfg, setMetaCfg] = useLocalStorage<MetaCfg>("ecc-int-meta", DEFAULT_META_CFG);
+  const [products] = useLocalStorage<Product[]>("ecc-products", []);
+  const [plannerStart] = useLocalStorage<string | null>("ecc-planner-start", null);
   const [syncing, setSyncing] = useState(false);
   const [editing, setEditing] = useState(false);
   const primeTime = usePrimeTimeCountdown(settings.country);
@@ -656,7 +768,28 @@ export function Dashboard() {
   const roasDelta = pctDelta(roas, ydRoas);
   const cpaDelta = pctDelta(cpa, ydCpa);
 
-  const aiAnalysis = analyzeMetrics(allMetrics, settings.beCpa, settings.beRoas, settings.ctrTarget);
+  // Derive campaign type from the testing product matching the active product name
+  const activeProduct = products.find(p =>
+    p.status === "testing" &&
+    (settings.productName ? p.name.toLowerCase().includes(settings.productName.toLowerCase().split(" ")[0]) : true)
+  ) ?? products.find(p => p.status === "testing") ?? null;
+  const campaignType = activeProduct?.campaignType ?? undefined;
+
+  // Calculate testing day from planner start date
+  const testingDay = (() => {
+    if (!plannerStart) return null;
+    const start = new Date(plannerStart);
+    const diff = Math.floor((new Date().getTime() - start.getTime()) / 86_400_000) + 1;
+    return diff >= 1 && diff <= 60 ? diff : null;
+  })();
+
+  const productCtx: ProductContext = {
+    productName: settings.productName || undefined,
+    campaignType: campaignType as CampaignStructure | undefined,
+    country: settings.country || undefined,
+  };
+
+  const aiAnalysis = analyzeMetrics(allMetrics, settings.beCpa, settings.beRoas, settings.ctrTarget, productCtx);
 
   const last7 = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i));
@@ -735,6 +868,20 @@ export function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Situación de hoy — personalized daily brief */}
+      {(testingDay || settings.productName) && (
+        <TodayBrief
+          productName={settings.productName}
+          campaignType={campaignType}
+          country={settings.country}
+          testingDay={testingDay}
+          roas={roas}
+          beRoas={settings.beRoas}
+          spend={m.spend}
+          purchases={m.purchases}
+        />
       )}
 
       {/* AI Analysis Panel */}

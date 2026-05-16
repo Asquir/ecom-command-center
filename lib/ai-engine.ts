@@ -2,6 +2,14 @@ import { linearTrend } from "./stats";
 
 type DM = { spend: number; revenue: number; clicks: number; impressions: number; atc: number; checkouts: number; purchases: number };
 
+export interface ProductContext {
+  productName?: string;
+  campaignType?: "ABO" | "CBO" | "SBO" | "ASC";
+  country?: string;
+  aov?: number;
+  margin?: number;
+}
+
 export interface Signal {
   label: string; value: string; status: "green" | "yellow" | "red"; detail: string; weight: number;
 }
@@ -59,7 +67,12 @@ export function analyzeMetrics(
   beCpa: number,
   beRoas: number,
   ctrTarget: number,
+  ctx: ProductContext = {},
 ): AIAnalysis {
+  const prod = ctx.productName ? `**${ctx.productName}**` : "tu producto";
+  const camp = ctx.campaignType ?? null;
+  const campLabel = camp === "ABO" ? "ABO" : camp === "CBO" ? "CBO" : camp === "SBO" ? "SBO" : camp === "ASC" ? "Advantage+ Shopping" : null;
+  const countryLabel = ctx.country === "ES" ? "España" : ctx.country === "US" ? "EE.UU." : ctx.country === "MX" ? "México" : null;
   const today = new Date().toISOString().split("T")[0];
 
   // Collect last 14 days of data
@@ -230,45 +243,45 @@ export function analyzeMetrics(
   let whyMessage = "";
   let score = 50;
 
+  const campCtx = campLabel ? ` (campaña ${campLabel})` : "";
+  const countryCtx = countryLabel ? ` en ${countryLabel}` : "";
+
   if (phase === "launch") {
-    // Day 1: never recommend scale or kill, just wait
     decision = "wait";
-    whyMessage = `Día 1 de testing. El algoritmo de Meta necesita 24-48h de fase de aprendizaje antes de dar señales fiables. NO tomes decisiones todavía — solo verifica que las ads están entregando y el pixel funciona.`;
+    whyMessage = `Día 1 testeando ${prod}${campCtx}${countryCtx}. Meta necesita 24-48h de fase de aprendizaje antes de dar señales fiables. NO toques nada — solo verifica que las ads están entregando y que el pixel registra View Content, ATC y Purchase correctamente.`;
     score = 50;
   }
   else if (phase === "signals") {
-    // Day 2-3: look for kill signals or wait
     if (beCpa > 0 && totalSpend >= beCpa * 1.5 && totalPurchases === 0 && totalAtc < 2) {
       decision = "kill";
-      whyMessage = `Llevas ${eurFmt(totalSpend)} (${(totalSpend / beCpa).toFixed(1)}× tu BE CPA) sin ventas y con apenas ${totalAtc} ATC. Si tras 1.5× BE CPA el producto no genera ATC, el creativo o la oferta no funcionan. Pausa y prueba otro ángulo.`;
+      whyMessage = `Llevas ${eurFmt(totalSpend)} en ${prod} (${(totalSpend / beCpa).toFixed(1)}× tu BE CPA de ${eurFmt(beCpa)}) sin ventas y con solo ${totalAtc} ATC${campCtx}. Con 1.5× BE CPA gastado sin ATC, el creativo o la oferta no están funcionando. Pausa y prueba un hook completamente distinto.`;
       score = 18;
     } else if (ctr > 0 && ctr < (ctrTarget || 2) * 0.4 && todayData.impressions > 1500) {
       decision = "optimize";
-      whyMessage = `CTR ${ctr.toFixed(2)}% con ${todayData.impressions} impresiones — el creativo no engancha. Cambia el hook (primer segundo) antes de seguir gastando.`;
+      whyMessage = `CTR ${ctr.toFixed(2)}% con ${todayData.impressions.toLocaleString()} impresiones en ${prod} — el hook no engancha. El primer segundo del vídeo o la imagen no captura la atención. Cambia el hook antes de seguir gastando.`;
       score = 30;
     } else if (totalPurchases >= 1 && beRoas > 0 && aggRoas >= beRoas) {
       decision = "watch";
-      whyMessage = `Primera señal positiva (${totalPurchases} compra${totalPurchases !== 1 ? "s" : ""}, ROAS ${aggRoas.toFixed(2)}×). PERO con solo ${testingDay} días NO es suficiente para escalar — un winner se valida con 3+ días rentables y 5+ compras. Sigue acumulando data.`;
+      whyMessage = `Primera señal positiva en ${prod}: ${totalPurchases} compra${totalPurchases !== 1 ? "s" : ""} y ROAS ${aggRoas.toFixed(2)}×${campCtx}. PERO con solo ${testingDay} días NO es suficiente — un winner real necesita mínimo 3 días rentables y 5 compras. Sigue acumulando datos, no escales todavía.`;
       score = 60;
     } else {
       decision = "watch";
-      whyMessage = `Día ${testingDay}: todavía es muy pronto para decidir. Espera al menos a tener 3 días con datos completos antes de tomar acción importante.`;
+      whyMessage = `Día ${testingDay} testeando ${prod}${campCtx}. Demasiado pronto para cualquier decisión importante. Espera al menos 3 días con datos completos.${campLabel === "ABO" ? " En ABO, cada ad set necesita ~50 eventos para que el algoritmo optimice bien." : campLabel === "CBO" ? " En CBO, deja que el algoritmo distribuya el presupuesto al menos 48h antes de intervenir." : ""}`;
       score = 45;
     }
   }
   else if (phase === "validation") {
-    // Day 4-5: harder calls
     if (beRoas > 0 && aggRoas < beRoas * 0.5 && totalSpend >= minSpend) {
       decision = "kill";
-      whyMessage = `Tras ${testingDay} días y ${eurFmt(totalSpend)} gastados, ROAS acumulado ${aggRoas.toFixed(2)}× está muy por debajo de tu BE (${beRoas}×). No es viable — pausa, registra autopsia y pasa al siguiente producto.`;
+      whyMessage = `Tras ${testingDay} días y ${eurFmt(totalSpend)} en ${prod}, ROAS acumulado ${aggRoas.toFixed(2)}× está muy por debajo del BE (${beRoas}×)${campCtx}. No es viable con esta estructura. Registra autopsia — los creativos con mejor CTR se pueden reciclar para tu próximo producto.`;
       score = 18;
     } else if (beCpa > 0 && aggCpa > beCpa * 2 && totalPurchases >= 3) {
       decision = "kill";
-      whyMessage = `CPA acumulado ${aggCpa.toFixed(2)}€ es más del doble que tu BE (${beCpa}€). Cada venta te cuesta dinero. Necesitas cambiar precio, oferta o producto.`;
+      whyMessage = `CPA acumulado en ${prod} es ${eurFmt(aggCpa)} — más del doble de tu BE de ${eurFmt(beCpa)}${campCtx}. Cada venta genera pérdida. Necesitas subir precio, añadir bundle, o cambiar el producto.`;
       score = 22;
     } else if (allGatesPass) {
       decision = "scale";
-      whyMessage = `Todos los criterios cumplidos: ${profitableDays} días rentables de ${testingDay}, ${totalPurchases} compras, ${eurFmt(totalSpend)} gastados. Empieza con +20% al conjunto ganador (no toques los demás).`;
+      whyMessage = `Todos los criterios cumplidos para ${prod}: ${profitableDays} días rentables, ${totalPurchases} compras, ${eurFmt(totalSpend)} testados${campCtx}. ${campLabel === "ABO" ? "En ABO: sube +20% el presupuesto diario SOLO del ad set ganador. No toques los demás." : campLabel === "CBO" ? "En CBO: sube +20% el presupuesto de la campaña entera. El algoritmo redistribuye solo." : "Empieza con +20% al conjunto ganador únicamente."}`;
       score = 80;
     } else if (beRoas > 0 && aggRoas >= beRoas) {
       decision = "watch";
@@ -278,51 +291,49 @@ export function analyzeMetrics(
         missingPurchases > 0 ? `${missingPurchases} venta${missingPurchases !== 1 ? "s" : ""} más` : null,
         missingProfDays > 0  ? `${missingProfDays} día${missingProfDays !== 1 ? "s" : ""} rentable${missingProfDays !== 1 ? "s" : ""} más` : null,
       ].filter(Boolean).join(" y ");
-      whyMessage = `Vas bien (ROAS ${aggRoas.toFixed(2)}× ≥ BE ${beRoas}×). Necesitas ${missing || "1-2 días más"} antes de escalar. La paciencia evita escalar productos falsos winners.`;
+      whyMessage = `${prod} va bien (ROAS ${aggRoas.toFixed(2)}× ≥ BE ${beRoas}×)${campCtx}. Faltan ${missing || "1-2 días más"} para confirmar el patrón. La paciencia ahora evita escalar un falso winner.`;
       score = 62;
     } else {
       decision = "optimize";
-      whyMessage = `Resultados mixtos tras ${testingDay} días. Identifica el creativo con mejor CTR + más ventas, pausa los demás y duplícalo con 1-2 variaciones del hook.`;
+      whyMessage = `Resultados mixtos en ${prod} tras ${testingDay} días${campCtx}. Identifica el creativo con mejor CTR + más compras, pausa los demás, y lanza 1-2 variaciones del hook ganador. Cambia UNA variable a la vez.`;
       score = 40;
     }
   }
   else if (phase === "decision") {
-    // Day 6-7: final verdict
     if (allGatesPass && profitableDays >= 3) {
       decision = "scale";
-      whyMessage = `Producto validado: ${profitableDays} de ${testingDay} días rentables con ${totalPurchases} compras. Inicia escalado vertical: +20% cada 72h SOLO al conjunto ganador. Si usas CBO, escala la campaña entera.`;
+      whyMessage = `${prod} validado tras ${testingDay} días: ${profitableDays} días rentables, ${totalPurchases} compras${campCtx}${countryCtx}. ${campLabel === "ABO" ? "Escala vertical: +20% cada 72h al ad set ganador. Tras 5-7 días estable, duplica el ad set." : campLabel === "CBO" ? "Sube budget de campaña +20% cada 72h. CBO distribuye solo. No toques los ad sets." : "Escala +20% cada 72h solo al conjunto ganador."}`;
       score = 86;
     } else if (beRoas > 0 && aggRoas < beRoas * 0.7) {
       decision = "kill";
-      whyMessage = `Tras ${testingDay} días, ROAS acumulado ${aggRoas.toFixed(2)}× < 70% del BE (${beRoas}×). No hay potencial — escalar haría perder más dinero. Registra autopsia y aprende para el siguiente.`;
+      whyMessage = `Tras ${testingDay} días, ROAS de ${prod} (${aggRoas.toFixed(2)}×) está por debajo del 70% del BE (${beRoas}×)${campCtx}. No hay potencial. Registra la autopsia con lo que aprendiste — especialmente qué creativo tuvo mejor CTR, te puede servir para el próximo.`;
       score = 20;
     } else if (beRoas > 0 && aggRoas >= beRoas * 0.85) {
       decision = "optimize";
-      whyMessage = `Borderline tras ${testingDay} días (ROAS ${aggRoas.toFixed(2)}× vs BE ${beRoas}×). Antes de matar: prueba nuevo ángulo, oferta 2x1, o sube AOV con bundle. Si tras 3 días más no mejora, mata.`;
+      whyMessage = `Borderline en ${prod} tras ${testingDay} días: ROAS ${aggRoas.toFixed(2)}× vs BE ${beRoas}×${campCtx}. Antes de matar: prueba subir el precio ${ctx.aov ? `(de ${eurFmt(ctx.aov)} a ${eurFmt(ctx.aov * 1.1)})` : ""}, añadir bundle 2x1, o cambiar el ángulo del creativo. Si en 3 días más no mejora, ejecuta autopsia.`;
       score = 42;
     } else {
       decision = "optimize";
-      whyMessage = `Sin clara dirección tras ${testingDay} días. Cambia 1 variable a la vez: creativo, audiencia o precio. No cambies todo — pierdes la trazabilidad.`;
+      whyMessage = `Sin dirección clara para ${prod} tras ${testingDay} días${campCtx}. Cambia UNA variable: nuevo hook, nuevo precio, o nueva audiencia. Nunca las tres a la vez o no sabrás qué funcionó.`;
       score = 38;
     }
   }
   else {
-    // Day 8+: scaling phase
     if (allGatesPass && profitableDays >= 5 && roasTrend.dir !== "down") {
       decision = "scale";
-      whyMessage = `Producto en escalado estable. Continúa +20% cada 72h. Si tienes 100+ compras, abre LAL 1% de compradores (no de ATC, que es ruido).`;
+      whyMessage = `${prod} en escalado estable${campCtx}${countryCtx}: ${profitableDays} días rentables. Mantén el ritmo: +20% cada 72h. ${totalPurchases >= 100 ? "Con 100+ compras, ya puedes abrir LAL 1% de compradores (Purchase event, no ATC)." : `Con ${totalPurchases} compras acumuladas, en ${Math.max(0, 100 - totalPurchases)} compras más podrás abrir LAL de compradores.`}`;
       score = 88;
     } else if (roasTrend.dir === "down" && testingDay >= 10) {
       decision = "optimize";
-      whyMessage = `ROAS en declive tras ${testingDay} días — saturación de audiencia o fatiga de creativo. Pausa los aumentos, lanza 2-3 creativos nuevos y considera audiencia LAL 2-3% para refrescar.`;
+      whyMessage = `ROAS de ${prod} en declive tras ${testingDay} días${campCtx} — saturación de audiencia o fatiga de creativo. Pausa los aumentos de budget, lanza 2-3 creativos nuevos y prueba ${campLabel === "CBO" ? "abrir una nueva campaña CBO con audiencia LAL 2-3%" : "audiencia LAL 2-3% en un ad set nuevo"} para refrescar.`;
       score = 50;
     } else if (beRoas > 0 && aggRoas < beRoas) {
       decision = "kill";
-      whyMessage = `Tras ${testingDay} días de escalado, ROAS cae por debajo del BE. La ventana del producto se cerró. Aterriza presupuestos, fideliza compradores con email/SMS y pasa al siguiente.`;
+      whyMessage = `La ventana de ${prod} se ha cerrado${campCtx}: ROAS cae por debajo del BE tras ${testingDay} días. Aterriza presupuestos gradualmente (-20%/día). Fideliza a los compradores existentes con email/SMS antes de pivotar.`;
       score = 28;
     } else {
       decision = "watch";
-      whyMessage = `Producto estable sin señal clara de mayor escalado. Mantén creativos rentables, prueba 1 variación nueva por semana, vigila CPM (subida = saturación).`;
+      whyMessage = `${prod} estable sin señal clara de mayor escalado${campCtx}. Mantén los creativos rentables, prueba 1 variación nueva por semana, y vigila el CPM — si sube >20% es señal de saturación de audiencia.`;
       score = 58;
     }
   }
